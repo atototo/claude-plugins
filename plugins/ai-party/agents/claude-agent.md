@@ -68,6 +68,16 @@ For Architecture Decisions:
 ### Risks & Mitigations
 ```
 
+## Team Mode Communication
+
+When spawned as part of a team (team_name provided):
+1. Use `SendMessage(type="message", recipient="<name>", content="...", summary="...")` to communicate with teammates
+2. Use `TaskUpdate` to mark assigned tasks `in_progress` when starting, `completed` when done
+3. Write your findings to `.party/findings/{your-role}.md` in the project root (e.g., `design.md` as architect, `review.md` as reviewer)
+4. Share key findings with specific teammates via SendMessage, not broadcast
+5. Follow phase assignments from your spawn instructions
+6. When your phase depends on another agent's output, read their findings from `.party/findings/` before starting
+
 ## Constraints
 - Never modify files directly. Provide review comments and recommendations only.
 - Never approve code you haven't reviewed.

@@ -25,6 +25,19 @@ if (!subagentType.startsWith("ai-party:")) {
   process.exit(0);
 }
 
+// ── team_name 감지 시 가벼운 검증으로 전환 ──
+const teamName = toolInput?.team_name ?? "";
+if (teamName) {
+  const result = {
+    continue: true,
+    systemMessage: `[ai-party] Agent completed in team "${teamName}". Team workflow continues — reviewer agent handles verification.`,
+  };
+  process.stdout.write(JSON.stringify(result));
+  process.exit(0);
+}
+
+// ── 이하: 단일 에이전트 모드 풀 검증 ──
+
 const agentName = subagentType.replace("ai-party:", "");
 const resultStr =
   typeof toolResult === "string"

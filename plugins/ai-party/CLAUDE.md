@@ -82,6 +82,18 @@ Task(subagent_type="ai-party:codex-agent", prompt="...", description="...")
 
 **검수 없이 사용자에게 결과를 전달하지 않는다.**
 
+### 팀 기반 워크플로우
+
+복합 작업(분석+설계+구현+리뷰 필요)에는 팀 모드를 사용한다:
+- `/party <task>` — 자동 팀 선택 (trigger_keywords 매칭)
+- `/party-team <team> <task>` — 팀 지정 (bugfix, devops, dev-backend, dev-frontend)
+- `/party-status` — 진행 상황 확인
+
+팀 모드에서는 Agent Teams(TeamCreate/SendMessage)로 에이전트가 직접 메시징하며 협업한다.
+모든 결과는 `.party/findings/`에 저장되고, 최종 승인 게이트를 거친다.
+
+팀 모드의 에이전트에게는 개별 검수 훅 대신 팀 워크플로우 내 리뷰 에이전트가 검수를 담당한다.
+
 ### 위임 제약 조건
 
 - 위임 프롬프트에 명시적 대상 파일 경로를 포함한다.
