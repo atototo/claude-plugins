@@ -1,0 +1,12 @@
+{
+  "name": "claude-plugins",
+  "private": true,
+  "workspaces": [
+    "plugins/*"
+  ],
+  "scripts": {
+    "build": "bash scripts/build.sh",
+    "validate:all": "bash scripts/validate-all.sh",
+    "new-plugin": "bash scripts/new-plugin.sh"
+  }
+}

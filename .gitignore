@@ -1,0 +1,19 @@
+node_modules/
+.DS_Store
+*.log
+.env
+.env.*
+
+# 플러그인 빌드 시 복사되는 공용 파일 (shared 원본이 source of truth)
+# 필요 시 각 플러그인의 복사본을 추적하지 않으려면 아래 주석 해제
+# plugins/*/scripts/common.sh
+# plugins/*/hooks/post-verify.mjs
+
+# 위임 상태 파일
+.multi-delegate/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1,0 +1,10 @@
+{
+  "name": "@young-plugins/multi-delegate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Delegate tasks to Codex or Gemini CLI",
+  "scripts": {
+    "validate": "claude plugin validate .",
+    "build": "bash ../../scripts/build.sh"
+  }
+}

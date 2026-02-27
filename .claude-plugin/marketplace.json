@@ -1,0 +1,12 @@
+{
+  "name": "young-plugins",
+  "description": "Young's Claude Code plugin collection",
+  "plugins": [
+    {
+      "name": "multi-delegate",
+      "version": "0.1.0",
+      "description": "Delegate tasks to Codex or Gemini with Claude review",
+      "path": "./plugins/multi-delegate"
+    }
+  ]
+}
