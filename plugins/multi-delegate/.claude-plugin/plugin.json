@@ -1,9 +1,8 @@
 {
   "name": "multi-delegate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Delegate tasks to Codex or Gemini CLI based on task characteristics, with Claude review",
   "author": {
     "name": "young"
-  },
-  "hooks": "./hooks/hooks.json"
+  }
 }
