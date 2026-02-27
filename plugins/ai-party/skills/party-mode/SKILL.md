@@ -8,35 +8,84 @@ description: >
   Orchestrates Claude, Gemini, and Codex AI agents as a collaborative team.
 ---
 
-# AI Party Mode — Agent Orchestration
+<party-mode>
 
-You are the orchestrator. **Do NOT handle coding tasks directly.** Delegate to agents via Task tool.
+# CRITICAL: You are an orchestrator. Delegate IMMEDIATELY.
 
-## Agent Spawn Syntax
+**STOP. Do NOT read files. Do NOT write code. Do NOT analyze code yourself.**
 
+Your ONLY job is to spawn the right agent(s) using the Task tool. Do this FIRST, before anything else.
+
+## Step 1: Classify the task
+
+| Task type | Agent to spawn | subagent_type |
+|-----------|---------------|---------------|
+| Code review, architecture evaluation, design decisions | Claude Agent (opus-level deep review) | `ai-party:claude-agent` |
+| Large-scale analysis, documentation, log analysis, multi-file review | Gemini Agent (Gemini CLI) | `ai-party:gemini-agent` |
+| Single-file code generation, tests, DTOs, utilities | Codex Agent (Codex CLI) | `ai-party:codex-agent` |
+| Compound task (review + generate) | Spawn MULTIPLE agents | see patterns below |
+
+## Step 2: Spawn agent(s) NOW
+
+Call the Task tool with these exact parameters:
+
+For **code review / architecture**:
 ```
-Task(subagent_type="ai-party:claude-agent", prompt="...", description="...")
-Task(subagent_type="ai-party:gemini-agent", prompt="...", description="...")
-Task(subagent_type="ai-party:codex-agent", prompt="...", description="...")
+Task tool: subagent_type="ai-party:claude-agent", prompt="<detailed review prompt with file paths>", description="Review code"
 ```
 
-## Delegation Decision Tree
+For **analysis / documentation**:
+```
+Task tool: subagent_type="ai-party:gemini-agent", prompt="<detailed analysis prompt with file paths>", description="Analyze code"
+```
 
-1. **Security/auth/encryption/secrets?** → Handle directly (NEVER delegate)
-2. **Code review, architecture evaluation, design decisions?** → `ai-party:claude-agent` (opus)
-3. **Large-scale analysis, documentation, log analysis, multi-file review?** → `ai-party:gemini-agent` (Gemini CLI)
-4. **Single-file code generation, tests, DTOs, utilities?** → `ai-party:codex-agent` (Codex CLI)
-5. **Compound task (review + generate)?** → Spawn multiple agents (parallel or sequential)
+For **code generation / tests**:
+```
+Task tool: subagent_type="ai-party:codex-agent", prompt="<detailed generation prompt with file paths>", description="Generate code"
+```
 
-## Compound Task Patterns
+## Step 3: Compound tasks — spawn multiple agents
 
-- "Review code and improve it" → claude-agent (review) + codex-agent (implement)
-- "Analyze project and write docs" → gemini-agent (both)
-- "Review, then generate tests" → claude-agent → codex-agent (sequential)
+- "Review and improve" → spawn `ai-party:claude-agent` (review) AND `ai-party:codex-agent` (implement) in parallel
+- "Analyze and document" → spawn `ai-party:gemini-agent` for both
+- "Review, then generate tests" → spawn `ai-party:claude-agent` first, then `ai-party:codex-agent`
 
-## Delegation Rules
+## Prompt writing rules
 
-- Include explicit file paths in agent prompts
-- Always run `git diff` before accepting results
-- Codex failure: retry with same thread_id (max 2 retries)
-- After 2 failures: switch to direct editing
+When writing the agent prompt, include:
+1. The exact file path(s) to work on
+2. The specific task description from the user
+3. The expected output format
+4. The current working directory: use `$(pwd)` or the project path
+
+Example prompt for claude-agent:
+"Review the code at /path/to/file.java for correctness, performance, and best practices. Provide specific improvement suggestions with code examples. Write your review in Korean."
+
+Example prompt for gemini-agent:
+"Analyze the codebase under /path/to/src/ and generate comprehensive documentation. Focus on architecture, key patterns, and API surface."
+
+Example prompt for codex-agent:
+"Generate unit tests for /path/to/file.ts. Follow the existing test patterns in /path/to/tests/. Use Jest with TypeScript."
+
+## Fallback: Bash scripts
+
+If the Task tool is unavailable, use Bash scripts directly:
+
+For Gemini:
+```
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/gemini_exec.sh" --task "<task>" --workdir "$(pwd)" [--files <file1> <file2>] [--include-directories <dir>]
+```
+
+For Codex:
+```
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/codex_exec.sh" --task "<task>" --workdir "$(pwd)"
+```
+
+## Rules
+
+- NEVER handle code review, generation, or analysis yourself — ALWAYS delegate
+- The ONLY exception: security-sensitive logic (auth, encryption, secrets) — handle directly
+- After agents complete, review their output with `git diff`
+- On agent failure (2 retries), fall back to direct editing
+
+</party-mode>
