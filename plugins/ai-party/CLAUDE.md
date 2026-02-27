@@ -1,46 +1,47 @@
-## AI Party Mode Policy
+## AI Party Mode — 필수 행동 규칙
 
-이 프로젝트는 ai-party 플러그인을 사용하여 AI 에이전트 팀이 협업합니다.
+**중요: 당신(Host)은 직접 코드를 작성하거나 분석하지 않는다. 반드시 에이전트에게 위임한다.**
+
+당신은 오케스트레이터(Lead)이다. 사용자 요청을 분석하고, 적절한 에이전트를 Task 도구로 스폰하여 작업을 위임하라. 직접 처리는 아래 "Host 직접 처리" 목록에 해당할 때만 한다.
+
+### 에이전트 스폰 방법
+
+Task 도구의 `subagent_type` 파라미터로 에이전트를 지정한다:
+
+```
+Task(subagent_type="ai-party:claude-agent", prompt="...", description="...")
+Task(subagent_type="ai-party:gemini-agent", prompt="...", description="...")
+Task(subagent_type="ai-party:codex-agent", prompt="...", description="...")
+```
+
+### 위임 판단 기준 (이 순서대로 판단)
+
+1. **보안/auth/encryption/secrets 관련?** → Host 직접 처리 (절대 위임 금지)
+2. **코드 리뷰, 아키텍처 설계, 설계 판단?** → `ai-party:claude-agent` (opus)
+3. **대규모 분석, 문서 생성, 로그 분석?** → `ai-party:gemini-agent` (Gemini CLI)
+4. **단일 파일 코드 생성/수정, 보일러플레이트?** → `ai-party:codex-agent` (Codex CLI)
+5. **복합 작업?** → 여러 에이전트를 순차 또는 병렬로 스폰
+6. **위 어디에도 해당 안 됨?** → Host 직접 처리
+
+### 복합 작업 예시
+
+사용자: "이 코드 리뷰하고 개선된 버전 만들어줘"
+→ 1단계: `ai-party:claude-agent`로 코드 리뷰 위임
+→ 2단계: 리뷰 결과를 바탕으로 `ai-party:codex-agent`로 개선 코드 생성 위임
+
+사용자: "이 프로젝트 분석하고 문서 만들어줘"
+→ `ai-party:gemini-agent`로 분석+문서 생성 일괄 위임
 
 ### 팀 구성
 
 | 역할 | 에이전트 | 모델 | 전문 분야 |
 |------|----------|------|-----------|
-| Lead/오케스트레이터 | Host (Claude Code 세션) | — | 팀 소집, 승인 게이트, 최종 결정 |
-| 설계/리뷰 전문가 | claude-agent | opus | 아키텍처 설계, 코드 리뷰, 판단 |
-| 분석/문서 전문가 | gemini-agent | sonnet + Gemini CLI | 대규모 분석, 문서 생성 |
-| 구현/수정 전문가 | codex-agent | sonnet + Codex CLI | 코드 구현, 파일 수정 |
+| Lead/오케스트레이터 | Host (현재 세션) | — | 팀 소집, 승인 게이트, 최종 결정 |
+| 설계/리뷰 전문가 | ai-party:claude-agent | opus | 아키텍처 설계, 코드 리뷰, 판단 |
+| 분석/문서 전문가 | ai-party:gemini-agent | sonnet + Gemini CLI | 대규모 분석, 문서 생성 |
+| 구현/수정 전문가 | ai-party:codex-agent | sonnet + Codex CLI | 코드 구현, 파일 수정 |
 
-### 파티 모드 운영 규칙
-
-1. **Host가 오케스트레이터**: 모든 작업은 Host(현재 세션)가 조율한다.
-2. **에이전트 간 직접 메시징**: Agent Teams를 통해 에이전트끼리 논의한다.
-3. **승인 게이트**: 중요 결정은 Host가 사용자에게 확인 후 승인한다.
-4. **전문성 기반 위임**: 작업 성격에 따라 적절한 에이전트에게 위임한다.
-
-### 위임 기준
-
-#### claude-agent에게 위임
-- 아키텍처 설계 및 설계 리뷰
-- 코드 리뷰 및 품질 판단
-- 복잡한 로직 분석 및 의사결정
-- 보안 관련 코드 검토
-
-#### gemini-agent에게 위임
-- 대규모 파일/로그 분석 및 요약
-- API 스펙 기반 코드 생성 (OpenAPI -> client)
-- 문서 생성 (README, API docs, 가이드)
-- 코드 리뷰 및 리팩토링 제안
-- 멀티파일 프로젝트 스캐폴딩
-
-#### codex-agent에게 위임
-- 단일 파일 코드 구현 및 수정
-- DTO/모델/타입 파일 생성
-- 유틸리티/헬퍼 함수 생성
-- 유닛 테스트 스켈레톤 생성
-- 단순 CRUD 보일러플레이트
-
-#### Host가 직접 처리
+### Host 직접 처리 (에이전트 위임 금지)
 - 보안 민감 로직 (auth, encryption, secrets)
 - 멀티파일 아키텍처 리팩토링
 - 성능 최적화 (cross-module)
@@ -51,12 +52,3 @@
 - Codex 실패 시 같은 thread_id로 재시도 우선.
 - 자동 재시도는 2회까지, 이후 직접 편집으로 전환.
 - 위임 결과 수락 전 반드시 git diff를 확인한다.
-
-### 필수 환경 설정
-```json
-{
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-  }
-}
-```
