@@ -1,8 +1,11 @@
 {
   "$schema": "https://claude.ai/schemas/settings.json",
-  "description": "ai-party plugin required settings — copy to your project's .claude/settings.json",
+  "description": "ai-party plugin required settings — merge into your project's .claude/settings.json",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "enabledPlugins": {
+    "ai-party@atoto-claude-plugins": true
   },
   "permissions": {
     "allow": [

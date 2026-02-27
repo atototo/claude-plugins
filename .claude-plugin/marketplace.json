@@ -9,6 +9,12 @@
       "source": "./plugins/multi-delegate",
       "version": "0.1.0",
       "description": "Delegate tasks to Codex or Gemini CLI with Claude review"
+    },
+    {
+      "name": "ai-party",
+      "source": "./plugins/ai-party",
+      "version": "0.1.0",
+      "description": "AI Party mode: Claude, Gemini, Codex agents collaborate as a team"
     }
   ]
 }
