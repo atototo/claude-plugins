@@ -4,10 +4,5 @@
   "description": "AI Party mode: Claude, Gemini, Codex agents collaborate as a team with Agent Teams messaging",
   "author": {
     "name": "young"
-  },
-  "agents": [
-    "./agents/claude-agent.md",
-    "./agents/gemini-agent.md",
-    "./agents/codex-agent.md"
-  ]
+  }
 }
