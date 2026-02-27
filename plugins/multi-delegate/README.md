@@ -5,8 +5,8 @@ Claude Code에서 Codex와 Gemini에 작업을 위임하고, Claude가 검수하
 ## 설치 (마켓플레이스)
 
 ```bash
-claude /plugin marketplace add github:young/claude-plugins
-claude /plugin install multi-delegate@young
+claude /plugin marketplace add github:atototo/claude-plugins
+claude /plugin install multi-delegate@atototo
 ```
 
 ## 로컬 테스트 (개발자)
