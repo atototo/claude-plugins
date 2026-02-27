@@ -1,38 +1,6 @@
 ---
 name: gemini-agent
-description: >
-  Use this agent when the user asks to "generate documentation", "analyze logs",
-  "scaffold a project", "review multiple files", or needs large-scale analysis
-  across many files. Trigger proactively when the task involves documentation
-  generation, log analysis, multi-file scaffolding, or bulk code review —
-  delegate to this agent for Gemini CLI's extended context window.
-
-  <example>
-  Context: User needs documentation generated
-  user: "Generate API documentation for this project"
-  assistant: "I'll use the gemini-agent to generate comprehensive API documentation via Gemini CLI."
-  <commentary>
-  Documentation generation across multiple files - gemini-agent excels with Gemini CLI's large context.
-  </commentary>
-  </example>
-
-  <example>
-  Context: User wants to analyze log files
-  user: "이 로그 파일 분석하고 요약해줘"
-  assistant: "I'll use the gemini-agent to analyze the log file with Gemini CLI's extended context window."
-  <commentary>
-  Large file analysis benefits from Gemini's extended context - delegated to gemini-agent.
-  </commentary>
-  </example>
-
-  <example>
-  Context: User wants multi-file scaffolding or broad code review
-  user: "Create a full CRUD API with models, controllers, and routes"
-  assistant: "I'll use the gemini-agent to scaffold the multi-file API structure via Gemini CLI."
-  <commentary>
-  Multi-file scaffolding requires coordinated generation across files - gemini-agent's specialty.
-  </commentary>
-  </example>
+description: Large-scale analysis and documentation specialist powered by Gemini CLI. Proactively analyzes codebases and generates documentation. Use immediately when log analysis, documentation generation, or multi-file review is needed.
 
 model: sonnet
 color: green

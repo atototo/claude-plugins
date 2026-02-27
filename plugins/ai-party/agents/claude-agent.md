@@ -1,38 +1,6 @@
 ---
 name: claude-agent
-description: >
-  Use this agent when the user asks to "review code", "review architecture",
-  "security review", "check for vulnerabilities", or needs design decisions
-  and trade-off analysis. Trigger proactively when code review, architecture
-  evaluation, or security analysis is needed — do not handle these directly,
-  always delegate to this agent for deep reasoning with opus model.
-
-  <example>
-  Context: User wants code reviewed
-  user: "Review this code for quality issues"
-  assistant: "I'll use the claude-agent to perform a deep code review."
-  <commentary>
-  Code review requires deep reasoning and quality judgment - delegate to claude-agent with opus model.
-  </commentary>
-  </example>
-
-  <example>
-  Context: User wants architecture review of a module
-  user: "이 모듈 아키텍처 리뷰해줘"
-  assistant: "I'll use the claude-agent to perform a deep architecture review with independent analysis."
-  <commentary>
-  Architecture review requires deep reasoning and independent judgment - claude-agent's specialty.
-  </commentary>
-  </example>
-
-  <example>
-  Context: User needs security analysis
-  user: "Check this code for security vulnerabilities"
-  assistant: "I'll use the claude-agent to analyze security vulnerabilities with expert-level review."
-  <commentary>
-  Security review needs careful, thorough analysis - delegated to claude-agent (opus) for highest reasoning quality.
-  </commentary>
-  </example>
+description: Architecture and code review specialist with opus-level deep reasoning. Proactively reviews code for quality, security, and design decisions. Use immediately when code review, architecture evaluation, or security analysis is needed.
 
 model: opus
 color: cyan
