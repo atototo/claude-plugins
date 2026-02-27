@@ -65,22 +65,21 @@ if [ -z "$TASK" ]; then
 fi
 
 if ! command -v gemini >/dev/null 2>&1; then
-  emit_result false gemini 1 "gemini CLI not found. Install: npm i -g @anthropic-ai/gemini-cli"
+  emit_result false gemini 1 "gemini CLI not found. Install: npm i -g @anthropic-ai/gemini-cli or see https://github.com/google-gemini/gemini-cli"
   exit 1
 fi
 
-# ── 명령 조립 ──
-# 핵심: gemini -y -p "<prompt>" --output-format json
-CMD="gemini -y -p $(printf '%q' "$TASK") --output-format json"
+# ── 명령 조립 (배열 기반 — eval 미사용) ──
+CMD=(gemini -y -p "$TASK" --output-format json)
 
 if [ -n "$MODEL" ]; then
-  CMD="$CMD --model $(printf '%q' "$MODEL")"
+  CMD+=(--model "$MODEL")
 fi
 
 # --include-directories 추가
 IFS='|'
 for d in $INCLUDE_DIRS; do
-  CMD="$CMD --include-directories $(printf '%q' "$d")"
+  CMD+=(--include-directories "$d")
 done
 unset IFS
 
@@ -94,16 +93,15 @@ cd "$WORKDIR"
 
 if [ -n "$FILES" ]; then
   # --files가 있으면 stdin 파이프로 전달
-  # cat file1 file2 ... | gemini -y -p "<task>" --output-format json
-  CAT_CMD="cat"
+  CAT_FILES=()
   IFS='|'
   for f in $FILES; do
-    CAT_CMD="$CAT_CMD $(printf '%q' "$f")"
+    CAT_FILES+=("$f")
   done
   unset IFS
-  eval "$CAT_CMD" | eval "$CMD" > "$TMPFILE" 2>"$ERRFILE" || EXIT_CODE=$?
+  cat "${CAT_FILES[@]}" | "${CMD[@]}" > "$TMPFILE" 2>"$ERRFILE" || EXIT_CODE=$?
 else
-  eval "$CMD" > "$TMPFILE" 2>"$ERRFILE" || EXIT_CODE=$?
+  "${CMD[@]}" > "$TMPFILE" 2>"$ERRFILE" || EXIT_CODE=$?
 fi
 
 # ── JSON 출력 파싱 ──
