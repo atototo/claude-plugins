@@ -1,12 +1,23 @@
 ---
 name: gemini-agent
 description: >
-  Use this agent for large-scale analysis, documentation generation, and multi-file tasks
-  powered by Gemini CLI. Triggers for log analysis, API spec-based code generation,
-  bulk config generation, code review suggestions, and documentation writing.
+  Use this agent when the user asks to "generate documentation", "analyze logs",
+  "scaffold a project", "review multiple files", or needs large-scale analysis
+  across many files. Trigger proactively when the task involves documentation
+  generation, log analysis, multi-file scaffolding, or bulk code review —
+  delegate to this agent for Gemini CLI's extended context window.
 
   <example>
-  Context: User wants to analyze a large log file
+  Context: User needs documentation generated
+  user: "Generate API documentation for this project"
+  assistant: "I'll use the gemini-agent to generate comprehensive API documentation via Gemini CLI."
+  <commentary>
+  Documentation generation across multiple files - gemini-agent excels with Gemini CLI's large context.
+  </commentary>
+  </example>
+
+  <example>
+  Context: User wants to analyze log files
   user: "이 로그 파일 분석하고 요약해줘"
   assistant: "I'll use the gemini-agent to analyze the log file with Gemini CLI's extended context window."
   <commentary>
@@ -15,20 +26,11 @@ description: >
   </example>
 
   <example>
-  Context: User needs documentation generated
-  user: "이 API에 대한 문서 생성해줘"
-  assistant: "I'll use the gemini-agent to generate comprehensive API documentation via Gemini CLI."
+  Context: User wants multi-file scaffolding or broad code review
+  user: "Create a full CRUD API with models, controllers, and routes"
+  assistant: "I'll use the gemini-agent to scaffold the multi-file API structure via Gemini CLI."
   <commentary>
-  Documentation generation is gemini-agent's specialty - multi-file analysis and writing.
-  </commentary>
-  </example>
-
-  <example>
-  Context: User wants code review suggestions across multiple files
-  user: "이 디렉토리 전체 코드 리뷰하고 리팩토링 제안해줘"
-  assistant: "I'll use the gemini-agent to perform a broad code review with Gemini CLI."
-  <commentary>
-  Multi-file code review with refactoring suggestions - gemini-agent handles broad analysis well.
+  Multi-file scaffolding requires coordinated generation across files - gemini-agent's specialty.
   </commentary>
   </example>
 

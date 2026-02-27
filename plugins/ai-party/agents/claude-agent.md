@@ -1,9 +1,20 @@
 ---
 name: claude-agent
 description: >
-  Use this agent for architecture design, code review, and critical decision-making
-  that requires deep reasoning with independent context. Triggers for design review,
-  security analysis, complex logic evaluation, and quality judgments.
+  Use this agent when the user asks to "review code", "review architecture",
+  "security review", "check for vulnerabilities", or needs design decisions
+  and trade-off analysis. Trigger proactively when code review, architecture
+  evaluation, or security analysis is needed — do not handle these directly,
+  always delegate to this agent for deep reasoning with opus model.
+
+  <example>
+  Context: User wants code reviewed
+  user: "Review this code for quality issues"
+  assistant: "I'll use the claude-agent to perform a deep code review."
+  <commentary>
+  Code review requires deep reasoning and quality judgment - delegate to claude-agent with opus model.
+  </commentary>
+  </example>
 
   <example>
   Context: User wants architecture review of a module
@@ -15,20 +26,11 @@ description: >
   </example>
 
   <example>
-  Context: User wants code quality assessment
-  user: "이 코드 보안 취약점 있는지 검토해줘"
+  Context: User needs security analysis
+  user: "Check this code for security vulnerabilities"
   assistant: "I'll use the claude-agent to analyze security vulnerabilities with expert-level review."
   <commentary>
   Security review needs careful, thorough analysis - delegated to claude-agent (opus) for highest reasoning quality.
-  </commentary>
-  </example>
-
-  <example>
-  Context: User needs design decision help
-  user: "REST vs GraphQL 어떤 게 나을지 판단해줘"
-  assistant: "I'll use the claude-agent to evaluate the trade-offs and make an architecture recommendation."
-  <commentary>
-  Technology decision requires weighing multiple factors - claude-agent provides structured decision analysis.
   </commentary>
   </example>
 

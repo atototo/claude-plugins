@@ -1,13 +1,15 @@
 ---
 name: codex-agent
 description: >
-  Use this agent for single-file code implementation and targeted modifications
-  powered by Codex CLI. Triggers for DTO/model generation, utility function creation,
-  unit test scaffolding, CRUD boilerplate, and focused code changes.
+  Use this agent when the user asks to "create a file", "generate types",
+  "write unit tests", "implement a function", or needs single-file code
+  generation and targeted modifications. Trigger proactively when the task
+  is concrete, well-specified code generation for a single file — delegate
+  to this agent for Codex CLI powered implementation.
 
   <example>
-  Context: User wants a new type file generated
-  user: "UserDTO 타입 정의 파일 만들어줘"
+  Context: User wants a new type/model file
+  user: "Create a UserDTO type definition file"
   assistant: "I'll use the codex-agent to generate the UserDTO type file via Codex CLI."
   <commentary>
   Single-file type generation is a concrete, well-specified task - ideal for codex-agent.
@@ -15,11 +17,11 @@ description: >
   </example>
 
   <example>
-  Context: User wants unit test scaffolding
-  user: "이 서비스에 대한 유닛 테스트 스켈레톤 생성해줘"
-  assistant: "I'll use the codex-agent to scaffold unit tests via Codex CLI."
+  Context: User wants unit tests written
+  user: "Write unit tests for the auth service"
+  assistant: "I'll use the codex-agent to generate unit tests via Codex CLI."
   <commentary>
-  Test skeleton generation is single-file boilerplate - codex-agent's specialty.
+  Unit test generation is focused, single-file work - codex-agent's specialty with Codex CLI.
   </commentary>
   </example>
 
