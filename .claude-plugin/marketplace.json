@@ -13,7 +13,7 @@
     {
       "name": "ai-party",
       "source": "./plugins/ai-party",
-      "version": "0.3.1",
+      "version": "0.3.3",
       "description": "AI Party mode: Claude, Gemini, Codex agents collaborate as a team"
     }
   ]
