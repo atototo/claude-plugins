@@ -1,6 +1,18 @@
 {
-  "description": "Verify ai-party agent outputs and enforce host review",
+  "description": "Auto-delegate coding tasks + verify agent outputs",
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/auto-delegate.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Task",
