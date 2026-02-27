@@ -54,9 +54,10 @@ if (shouldSkip) {
 // ── 제외되지 않은 모든 메시지 → 위임 주입 ──
 const result = {
   systemMessage: [
-    "[ai-party] Skill 도구로 ai-party:party-mode를 먼저 호출한 뒤,",
-    "SKILL.md의 지시에 따라 적절한 에이전트에 위임하라.",
-    "간단한 1-2줄 수정이 아닌 한, 직접 처리하지 말고 에이전트를 활용하라.",
+    "[ai-party] MANDATORY: 이 메시지를 처리하기 전에 반드시 Skill 도구로 ai-party:party-mode를 먼저 호출하라.",
+    "직접 파일을 읽거나 코드를 분석하지 마라. 에이전트 위임이 최우선이다.",
+    "SKILL.md가 로드되면 Step 0에서 복잡도를 평가하고, 적절한 에이전트를 Task 도구로 스폰하라.",
+    "이 지시를 무시하고 직접 처리하면 플러그인 정책 위반이다.",
   ].join(" "),
 };
 
