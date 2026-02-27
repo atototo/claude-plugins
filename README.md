@@ -31,7 +31,7 @@ Claude (두뇌: 설계/판단/검수)
 
 ```bash
 /plugin marketplace add atototo/claude-plugins
-/plugin install multi-delegate@claude-plugins
+/plugin install multi-delegate@atoto-claude-plugins
 ```
 
 **UI:**

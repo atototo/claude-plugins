@@ -8,7 +8,7 @@ Claude Code에서 Codex와 Gemini에 작업을 위임하고, Claude가 검수하
 
 ```bash
 /plugin marketplace add atototo/claude-plugins
-/plugin install multi-delegate@claude-plugins
+/plugin install multi-delegate@atoto-claude-plugins
 ```
 
 **UI:**
