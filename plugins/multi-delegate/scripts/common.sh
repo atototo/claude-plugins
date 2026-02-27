@@ -20,9 +20,10 @@ EOF
 }
 
 # 위임 상태 저장
+# PLUGIN_STATE_DIR 환경변수로 상태 디렉토리명 변경 가능 (기본: .multi-delegate)
 save_state() {
   local workdir="$1" source="$2" payload="$3"
-  local state_dir="$workdir/.multi-delegate"
+  local state_dir="$workdir/${PLUGIN_STATE_DIR:-.multi-delegate}"
   mkdir -p "$state_dir"
   echo "$payload" > "$state_dir/last-${source}.json"
 }

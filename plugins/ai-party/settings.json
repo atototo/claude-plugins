@@ -1,0 +1,15 @@
+{
+  "$schema": "https://claude.ai/schemas/settings.json",
+  "description": "ai-party plugin required settings — copy to your project's .claude/settings.json",
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(codex_exec.sh*)",
+      "Bash(gemini_exec.sh*)",
+      "Bash(codex *)",
+      "Bash(gemini *)"
+    ]
+  }
+}
