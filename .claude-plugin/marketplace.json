@@ -1,12 +1,14 @@
 {
-  "name": "young-plugins",
-  "description": "Young's Claude Code plugin collection",
+  "name": "claude-plugins",
+  "owner": {
+    "name": "atototo"
+  },
   "plugins": [
     {
       "name": "multi-delegate",
+      "source": "./plugins/multi-delegate",
       "version": "0.1.0",
-      "description": "Delegate tasks to Codex or Gemini with Claude review",
-      "path": "./plugins/multi-delegate"
+      "description": "Delegate tasks to Codex or Gemini CLI with Claude review"
     }
   ]
 }

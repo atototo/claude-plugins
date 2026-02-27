@@ -4,10 +4,18 @@ Claude Code에서 Codex와 Gemini에 작업을 위임하고, Claude가 검수하
 
 ## 설치 (마켓플레이스)
 
+**CLI:**
+
 ```bash
-claude /plugin marketplace add github:atototo/claude-plugins
-claude /plugin install multi-delegate@atototo
+/plugin marketplace add atototo/claude-plugins
+/plugin install multi-delegate@claude-plugins
 ```
+
+**UI:**
+
+1. `/plugin` 입력 → **Marketplaces** 탭 → **+ Add Marketplace**
+2. `atototo/claude-plugins` 입력
+3. **Plugins** 탭에서 `multi-delegate` 설치
 
 ## 로컬 테스트 (개발자)
 
