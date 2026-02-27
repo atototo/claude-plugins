@@ -1,11 +1,12 @@
 ---
 name: party-mode
 description: >
-  This skill should be used when the user asks for "code review", "코드 리뷰", "review this code",
-  "코드 생성", "generate code", "implement", "구현해줘", "만들어줘",
-  "analyze", "분석", "문서 생성", "documentation", "refactor", "리팩토링",
-  "테스트 작성", "write tests", or any coding task that involves review, generation, analysis, or documentation.
-  Orchestrates Claude, Gemini, and Codex AI agents as a collaborative team.
+  MUST be invoked for ANY coding task — no exceptions, no complexity judgment.
+  Triggers: "code review", "코드 리뷰", "review this code", "코드 생성", "generate code",
+  "implement", "구현해줘", "만들어줘", "analyze", "분석", "문서 생성", "documentation",
+  "refactor", "리팩토링", "테스트 작성", "write tests", or any task involving code.
+  Do NOT evaluate whether the task is "too simple" — the user installed this plugin to use it.
+  ALWAYS invoke this skill first, then delegate to agents. Never handle coding tasks directly.
 ---
 
 <party-mode>
