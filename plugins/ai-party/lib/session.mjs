@@ -57,10 +57,28 @@ export function createSession({ team, task, members = [] }) {
 }
 
 /**
+ * Validate session has correct schema (required fields).
+ */
+export function isSessionValid(session) {
+  if (!session) return false;
+  return !!(session.id && session.phase && Array.isArray(session.members));
+}
+
+/**
+ * Check if session is stale (older than maxAgeMs, default 4 hours).
+ */
+export function isSessionStale(session, maxAgeMs = 4 * 60 * 60 * 1000) {
+  if (!session?.created_at) return true;
+  return Date.now() - new Date(session.created_at).getTime() > maxAgeMs;
+}
+
+/**
  * Check if a pipeline is currently active.
  */
 export function isPipelineActive(session) {
   if (!session) return false;
+  if (!session.phase) return false;
+  if (!isSessionValid(session)) return false;
   const inactive = new Set([
     STATES.IDLE, STATES.DONE, STATES.ROLLED_BACK, STATES.FAILED,
   ]);

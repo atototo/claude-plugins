@@ -18,7 +18,7 @@ import {
   HOST_DIRECT_STATES,
   SESSION_FILE,
 } from "../lib/constants.mjs";
-import { readSession, isPipelineActive } from "../lib/session.mjs";
+import { readSession, isPipelineActive, isSessionValid, isSessionStale } from "../lib/session.mjs";
 
 let payload;
 try {
@@ -50,6 +50,11 @@ if (ALLOWED_TOOLS.has(toolName)) {
 
 // 2. 세션 읽기
 const session = readSession();
+
+// 2.5 세션 유효성/staleness 검증 — invalid/stale이면 enforcement skip
+if (session && (!isSessionValid(session) || isSessionStale(session))) {
+  process.exit(0);
+}
 
 // 3. 활성 파이프라인 없으면 허용
 if (!isPipelineActive(session)) {

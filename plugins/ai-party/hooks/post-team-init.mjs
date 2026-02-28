@@ -8,7 +8,7 @@
 import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createSession, writeSession, readSession } from "../lib/session.mjs";
+import { createSession, writeSession, readSession, isSessionValid, isSessionStale } from "../lib/session.mjs";
 import { emit } from "../lib/events.mjs";
 import {
   PARTY_DIR,
@@ -46,10 +46,10 @@ if (!teamName.startsWith("party-")) {
   process.exit(0);
 }
 
-// ── 멱등성: 이미 session.json이 있으면 스킵 ──
+// ── 멱등성: 유효한 세션이 있으면 스킵 (stale/invalid 세션은 덮어쓰기) ──
 const cwd = process.cwd();
 const existingSession = readSession(cwd);
-if (existingSession) {
+if (existingSession && isSessionValid(existingSession) && !isSessionStale(existingSession)) {
   const msg = {
     continue: true,
     systemMessage: `[ai-party] Session already exists (${existingSession.id}, phase: ${existingSession.phase}). Skipping re-initialization.`,
