@@ -11,6 +11,7 @@
 
 import { readFileSync } from "node:fs";
 import { readSession, writeSession } from "../lib/session.mjs";
+import { transition } from "../lib/state-machine.mjs";
 import { arePhaseTicketsDone } from "../lib/tickets.mjs";
 import { emit } from "../lib/events.mjs";
 import { EVENT_TYPES, STATES } from "../lib/constants.mjs";
@@ -74,6 +75,17 @@ if (session.members && Array.isArray(session.members)) {
       messages.push(
         `[ai-party] Team spawn verified: all ${session.members.length} members spawned.`
       );
+
+      // IDLE → 첫 phase 자동 전환: 전원 스폰 완료가 파이프라인 시작 시점
+      if (session.phase === STATES.IDLE) {
+        const targetPhase = session.starting_phase || STATES.ANALYZING;
+        const transResult = transition(targetPhase, "All members spawned — auto-starting pipeline", { cwd });
+        if (transResult.ok) {
+          messages.push(`[ai-party] Pipeline auto-started: IDLE → ${targetPhase}`);
+        } else {
+          messages.push(`[ai-party] Auto-start failed: ${transResult.error}`);
+        }
+      }
     } else {
       messages.push(
         `[ai-party] Spawned: ${agentType}. Remaining: ${unspawned.map((m) => m.agent).join(", ")} (${unspawned.length} left)`

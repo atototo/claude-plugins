@@ -5,7 +5,7 @@
 //
 // fail-open: 오류 시 exit(0) — TeamCreate 자체를 막지 않는다.
 
-import { readFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createSession, writeSession, readSession, isSessionValid, isSessionStale } from "../lib/session.mjs";
@@ -15,6 +15,7 @@ import {
   FINDINGS_DIR,
   TICKETS_DIR,
   EVENT_TYPES,
+  STATES,
 } from "../lib/constants.mjs";
 
 // ── 경로 해결: import.meta.url 기반 (OMC 패턴) ──
@@ -58,12 +59,28 @@ if (existingSession && isSessionValid(existingSession) && !isSessionStale(existi
   process.exit(0);
 }
 
-// ── 팀 타입 추출 ──
+// ── 팀 타입 매칭 (파일 기반) ──
+// Host LLM이 생성하는 팀 이름 형식이 예측 불가능하므로
+// 실제 teams/*.md 파일명과 직접 매칭한다.
+// "party-party-dev-frontend-20260228-20260228122636" → "dev-frontend"
 // "party-bugfix-20260228105458" → "bugfix"
-// "party-dev-backend-20260228105458" → "dev-backend"
-function extractTeamType(name) {
-  const match = name.match(/^party-(.+?)-\d{14}$/);
-  return match ? match[1] : null;
+function matchTeamType(teamName) {
+  let teamFiles;
+  try {
+    teamFiles = readdirSync(TEAMS_DIR)
+      .filter((f) => f.endsWith(".md"))
+      .map((f) => f.replace(".md", ""));
+  } catch {
+    return null;
+  }
+  // 긴 이름 우선 매칭 (dev-backend > dev)
+  teamFiles.sort((a, b) => b.length - a.length);
+  for (const tf of teamFiles) {
+    if (teamName.includes(tf)) {
+      return tf;
+    }
+  }
+  return null;
 }
 
 // ── teams/*.md에서 멤버 파싱 ──
@@ -87,9 +104,20 @@ function parseMembersFromTeamMd(content) {
   return members;
 }
 
-// ── 팀 타입에서 멤버 목록 로드 ──
-const teamType = extractTeamType(teamName);
+// ── teams/*.md Workflow 섹션에서 시작 phase 파싱 ──
+// "1. **ANALYZING**:" → "ANALYZING"
+function parseStartingPhase(content) {
+  const match = content.match(/\d+\.\s+\*\*(\w+)\*\*/);
+  if (match && STATES[match[1]]) {
+    return match[1];
+  }
+  return STATES.ANALYZING; // 기본값
+}
+
+// ── 팀 타입에서 멤버 목록 + 시작 phase 로드 ──
+const teamType = matchTeamType(teamName);
 let members = [];
+let startingPhase = STATES.ANALYZING;
 
 if (teamType) {
   const teamMdPath = join(TEAMS_DIR, `${teamType}.md`);
@@ -97,6 +125,7 @@ if (teamType) {
     try {
       const content = readFileSync(teamMdPath, "utf-8");
       members = parseMembersFromTeamMd(content);
+      startingPhase = parseStartingPhase(content);
     } catch {
       // fail-soft: 팀 MD 파싱 실패 → 빈 멤버로 생성
     }
@@ -117,9 +146,13 @@ try {
   // fail-open: 디렉토리 생성 실패해도 계속
 }
 
-// ── 세션 생성 + 저장 ──
+// ── 세션 생성 + 메타데이터 주입 ──
 const task = description || "No description provided";
 const session = createSession({ team: teamType || teamName, task, members });
+
+// 훅 전용 메타데이터: LLM 프롬프트에 의존하지 않는 결정론적 값
+session.pluginRoot = join(__dirname, ".."); // import.meta.url 기반 절대 경로
+session.starting_phase = startingPhase;     // 팀 MD Workflow에서 파싱한 첫 phase
 
 try {
   writeSession(session, cwd);
