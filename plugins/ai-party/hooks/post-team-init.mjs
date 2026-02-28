@@ -47,14 +47,19 @@ if (!teamName.startsWith("party-")) {
   process.exit(0);
 }
 
-// ── 멱등성: 같은 팀의 유효한 세션만 재사용 ──
+// ── 멱등성: 같은 팀의 유효한(진행 중인) 세션만 재사용 ──
+// 터미널 phase 세션은 재사용하지 않고 새로 생성한다.
+const TERMINAL_PHASES = new Set([
+  "COMPLETED", "DONE", "ROLLED_BACK", "FAILED", "REJECTED", "APPROVED",
+]);
+
 const cwd = process.cwd();
 const existingSession = readSession(cwd);
 if (existingSession && isSessionValid(existingSession) && !isSessionStale(existingSession)) {
   // teamName이 다르면 새 세션으로 덮어쓰기
   const existingTeamMatch = existingSession.id && existingSession.id.includes(teamName);
-  if (existingTeamMatch) {
-    // 같은 팀 — pluginRoot/starting_phase 누락 시 패치
+  if (existingTeamMatch && !TERMINAL_PHASES.has(existingSession.phase)) {
+    // 같은 팀 + 진행 중 — pluginRoot/starting_phase 누락 시 패치
     let patched = false;
     if (!existingSession.pluginRoot) {
       existingSession.pluginRoot = join(__dirname, "..");
