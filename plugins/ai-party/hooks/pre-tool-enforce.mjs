@@ -16,6 +16,7 @@ import {
   ALLOWED_TOOLS,
   BLOCKED_TOOLS,
   HOST_DIRECT_STATES,
+  SESSION_FILE,
 } from "../lib/constants.mjs";
 import { readSession, isPipelineActive } from "../lib/session.mjs";
 
@@ -28,6 +29,19 @@ try {
 }
 
 const toolName = payload?.tool_name ?? "";
+
+// 0. session.json 직접 Write 차단 (훅이 관리하므로 파이프라인 상태 무관하게 항상 보호)
+if (toolName === "Write") {
+  const filePath = payload?.tool_input?.file_path ?? "";
+  if (filePath.includes(".party/session.json") || filePath.endsWith(SESSION_FILE)) {
+    const result = {
+      permissionDecision: "deny",
+      message: "[ai-party] .party/session.json is managed by hooks. Do not write directly. Use session-cli.mjs or the hook system.",
+    };
+    process.stdout.write(JSON.stringify(result));
+    process.exit(2);
+  }
+}
 
 // 1. 오케스트레이션 도구는 항상 허용
 if (ALLOWED_TOOLS.has(toolName)) {
