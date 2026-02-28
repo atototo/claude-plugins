@@ -24,7 +24,7 @@
 14. [사전 요구사항](#14-사전-요구사항)
 15. [구현 순서 및 체크리스트](#15-구현-순서-및-체크리스트)
 16. [전체 아키텍처 — AI OPS 플랫폼](#16-전체-아키텍처--ai-ops-플랫폼)
-17. [OMC 채택 패턴](#17-omcoh-my-claudecode-채택-패턴)
+17. [OMC + TaskForce.AI 채택 패턴](#17-omc--taskforceai-채택-패턴)
 18. [로드맵 타임라인](#18-로드맵-타임라인)
 
 ---
@@ -485,14 +485,18 @@ IDLE → ANALYZING → PLANNING → EXECUTING → REVIEWING → AWAITING_APPROVA
 프로젝트루트/
 └── .party/                       # .gitignore에 제외됨
     ├── session.json              # 세션 메타데이터 (팀, 상태, 멤버, 실행 통계)
+    ├── events.ndjson             # 정형화된 이벤트 스트림 (대시보드 데이터 소스)
+    ├── tickets/                  # 원자화된 작업 단위
+    │   ├── TICKET-001.json       # 개별 티켓 (status, assignee, dependsOn)
+    │   ├── TICKET-002.json
+    │   └── ...
     ├── findings/                 # 단계별 결과물 (핸드오프 핵심)
     │   ├── analysis.md           # Gemini 분석 결과
     │   ├── design.md             # Claude 설계 결과
     │   ├── implementation.md     # Codex 구현 결과
     │   └── review.md             # Claude 리뷰 결과
-    ├── approvals/                # 승인 요청 기록
-    │   └── {timestamp}.json      # 승인 요청
-    └── history.jsonl             # 세션 이벤트 로그 (append-only)
+    └── approvals/                # 승인 요청 기록
+        └── {timestamp}.json      # 승인 요청
 ```
 
 ---
@@ -580,7 +584,8 @@ plugins/ai-party/
 ├── commands/                          # Layer 3: 슬래시 커맨드
 │   ├── party.md                       # /party <task> — 자동 팀 구성
 │   ├── party-team.md                  # /party-team <team> <task> — 팀 지정
-│   └── party-status.md                # /party-status — 진행 상황 확인
+│   ├── party-status.md                # /party-status — 진행 상황 확인
+│   └── party-board.md                 # /party-board — 칸반 보드 (Phase 3)
 │
 ├── skills/                            # 오케스트레이션 스킬
 │   └── party-mode/
@@ -595,10 +600,21 @@ plugins/ai-party/
 │   ├── gemini_exec.sh                 # Gemini CLI 래퍼
 │   └── common.sh                      # 공용 유틸
 │
+├── lib/                               # 실행 엔진 모듈 (Phase 3)
+│   ├── tickets.mjs                    # 티켓 CRUD + 의존성 관리
+│   ├── events.mjs                     # 이벤트 발행 (events.ndjson append)
+│   ├── state-machine.mjs              # 파이프라인 상태 머신 + 티켓 기반 전환
+│   └── constants.mjs                  # 이벤트 타입, 티켓 상태 상수
+│
 ├── hooks/                             # 이벤트 훅
 │   ├── hooks.json                     # 훅 등록
 │   ├── auto-delegate.mjs              # UserPromptSubmit: 에이전트 위임 주입
-│   └── post-agent-verify.mjs          # PostToolUse: 에이전트 결과 검수 체크리스트
+│   ├── post-agent-verify.mjs          # PostToolUse: 에이전트 결과 검수 체크리스트
+│   ├── pre-tool-enforce.mjs           # L3: PreToolUse 기계적 차단
+│   ├── post-tool-verify.mjs           # L2: PostToolUse 스폰/티켓 검증
+│   ├── pre-tool-remind.mjs            # L1: PreToolUse 리마인더 주입
+│   ├── pre-tool-model-inject.mjs      # PreToolUse: 에이전트 model 자동 주입
+│   └── pipeline-state.mjs             # PostToolUse: 상태 전환 엔진
 │
 ├── CLAUDE.md                          # 프로젝트 수준 파티 정책
 ├── settings.json                      # Agent Teams 활성화 등 설정
@@ -1050,8 +1066,41 @@ disable-model-invocation: true
 ## Protocol
 
 1. .party/session.json 읽기
-2. 현재 단계, 각 에이전트 상태, 태스크 진행률 표시
+2. 현재 단계, 각 에이전트 상태, 티켓 진행률 표시
 3. 승인 대기 항목이 있으면 강조 표시
+```
+
+### 12.4 /party-board — 칸반 보드 (Phase 3)
+
+```markdown
+---
+description: Show kanban board view of current party tickets
+allowed-tools: Read, Glob
+---
+
+# /party-board
+
+칸반 보드 형태로 현재 세션의 티켓 상태를 표시한다.
+Phase 5 웹 대시보드의 터미널 선행 버전.
+
+## Protocol
+
+1. .party/tickets/*.json 전부 읽기
+2. 상태별 그룹핑 (BLOCKED, TODO, IN_PROGRESS, DONE)
+3. 칸반 형태로 출력:
+
+═══════════════════════════════════════════════════════════════
+ BLOCKED        │ TODO           │ IN PROGRESS    │ DONE
+═══════════════════════════════════════════════════════════════
+ T-005 통합테스트│ T-004 단위테스트│ T-003 API구현   │ T-001 분석
+ T-006 코드리뷰  │               │  └ codex-builder│ T-002 설계
+═══════════════════════════════════════════════════════════════
+
+ Pipeline: party-bugfix-20260228    Phase: EXECUTING (3/5)
+ Team: bugfix                       Tickets: 2/6 done
+
+4. 각 티켓에 assignee, dependsOn 관계도 표시
+5. BLOCKED 티켓은 어떤 티켓을 기다리는지 표시
 ```
 
 ---
@@ -1186,48 +1235,152 @@ Step 9: .party/ Finding Card 구조
 > `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 필수.
 
 ```
-Step 10: PreToolUse 기계적 강제 훅
-  [ ] hooks/pre-tool-enforce.mjs 생성
+Step 10: 3계층 강제 모델 (Enforcement Layers)
+  > 프롬프트만으로는 팀 스폰과 위임을 강제할 수 없다.
+  > OMC 조사 결과: 프롬프트 advisory는 모델이 무시 가능.
+  > 3계층으로 기계적 + 검증적 + 맥락적 강제를 조합한다.
+
+  [ ] L3: PreToolUse 기계적 차단 (hooks/pre-tool-enforce.mjs)
       - 파이프라인 활성 상태(.party/session.json exists + status != IDLE)에서
         Host가 직접 Read/Edit/Write/Bash 호출 시 차단 + "에이전트에게 위임하라" 메시지
       - Task 도구 호출은 허용 (에이전트 스폰)
       - 승인 게이트 단계(AWAITING_APPROVAL)에서는 Host 직접 도구 허용
       - OMC 패턴: systemMessage 설득이 아닌 기계적 차단
+
+  [ ] L2: PostToolUse 검증 (hooks/post-tool-verify.mjs)
+      - 팀 스폰 완료 검증: 팀 프리셋이 요구하는 멤버가 모두 스폰되었는지 확인
+        → bugfix 팀이면 gemini + claude + codex 3종 필수
+        → 누락 감지 시 "codex-builder 아직 안 스폰됨. 스폰하세요" 메시지 주입
+      - 티켓 완료 검증: findings 제출 시 티켓 데이터 존재 확인
+      - Phase 전환 검증: 해당 phase의 모든 티켓 DONE 확인 후 전환 허용
+
+  [ ] L1: PreToolUse 리마인더 주입 (hooks/pre-tool-remind.mjs)
+      - Task 호출 시 현재 상태 컨텍스트 주입: "남은 스폰: 2명, 현재 phase: ANALYZING"
+      - PostToolUse 검증 실패 시 다음 턴에 교정 메시지 삽입
+      - 가벼운 힌트 수준 — L3/L2가 핵심, L1은 보조
+
   [ ] hooks/pre-tool-model-inject.mjs 생성
       - Task 도구 호출 시 subagent_type이 ai-party 에이전트면 model 파라미터 자동 주입
       - claude-agent → opus, gemini-agent → sonnet, codex-agent → sonnet
       - OMC delegation-enforcer.js 패턴 채택
-  [ ] hooks.json에 PreToolUse 이벤트 등록
+  [ ] hooks.json에 PreToolUse/PostToolUse 이벤트 등록
 
-Step 11: 파이프라인 상태 머신
+Step 11: 파이프라인 상태 머신 + 정형 이벤트 스트림
   [ ] hooks/pipeline-state.mjs 생성 — 상태 관리 엔진
       상태: IDLE → ANALYZING → PLANNING → EXECUTING → REVIEWING → AWAITING_APPROVAL
               → APPROVED / REJECTED / REVISION → DONE / ROLLED_BACK
       전환 규칙:
         - 허용된 전환만 가능 (OMC transitions.js 패턴)
-        - 가드: 이전 단계 artifact(findings/*.md) 존재해야 다음 전환 허용
+        - 가드: 이전 단계의 모든 티켓이 DONE이어야 다음 전환 허용
+          (기존 artifact 존재 체크도 하위 호환으로 유지)
         - fix loop: 최대 3회 재시도 후 FAILED
         - 취소 + 재개 지원 (preserve_for_resume 플래그)
   [ ] .party/session.json 스키마 확정
       {
         id: "party-{team}-{timestamp}",
+        requestId: "REQ-001",
         team: "bugfix",
         task: "원본 요청",
         phase: "ANALYZING",
         phase_history: [{ phase, entered_at, reason }],
         execution: {
           workers_total, workers_active,
-          tasks_total, tasks_completed, tasks_failed
+          tickets_total, tickets_completed, tickets_failed
         },
         fix_loop: { attempt: 0, max_attempts: 3 },
         cancel: { requested: false, preserve_for_resume: false },
         artifacts: { analysis_path, design_path, review_path },
-        members: [{ name, agent, role }]
+        members: [{ name, agent, role, spawned: false }]
       }
-  [ ] 상태 전환 시 history.jsonl에 이벤트 append
+  [ ] events.ndjson — 정형화된 이벤트 스트림 (history.jsonl 대체)
+      > Phase 5 대시보드의 데이터 소스. 지금부터 스키마를 확정해야 대시보드가 수월.
+      이벤트 포맷:
+      {
+        "ts": "2026-02-28T04:30:00Z",
+        "type": "ticket_updated",     // 정해진 이벤트 타입
+        "sessionId": "party-bugfix-...",
+        "data": { ... }               // 타입별 데이터
+      }
+      이벤트 타입:
+        pipeline_started    — 파이프라인 시작
+        pipeline_completed  — 파이프라인 완료
+        phase_changed       — 페이즈 전환
+        ticket_created      — 티켓 생성
+        ticket_updated      — 티켓 상태 변경 (status, assignee)
+        findings_submitted  — 산출물 제출
+        approval_requested  — 승인 요청
+        decision_made       — 사용자 결정
+        agent_spawned       — 에이전트 스폰
+        agent_completed     — 에이전트 완료
+        team_spawn_verified — 팀 스폰 완료 검증 통과
+        error_occurred      — 오류 발생
+  [ ] lib/events.mjs 생성 — emit(type, data) 함수
   [ ] 모드 레지스트리: 동시 파이프라인 방지 (OMC mode-registry 패턴)
 
-Step 12: 파일 기반 핸드오프 구현
+Step 12: 티켓 시스템 + 파일 기반 핸드오프
+  > 핵심 변경: phase 단위만 있던 것에서 ticket 단위로 세분화.
+  > TaskForce.AI의 티켓 원자화 패턴 + Agent Teams의 TaskCreate 1:1 매핑.
+  > 티켓 간 관계는 dependsOn 하나로 충분.
+
+  [ ] lib/tickets.mjs 생성 — 티켓 CRUD + 의존성 관리
+      export function createTicket({ title, description, phase, assignee, dependsOn }) → Ticket
+      export function updateTicket(ticketId, updates) → Ticket
+      export function getTicket(ticketId) → Ticket | null
+      export function listTickets(filter?) → Ticket[]
+      export function isTicketReady(ticketId) → boolean   // dependsOn 전부 DONE이면 true
+      export function getPhaseTickets(phase) → Ticket[]
+      export function arePhaseTicketsDone(phase) → boolean
+
+  [ ] .party/tickets/TICKET-NNN.json 스키마 확정
+      {
+        "id": "TICKET-001",
+        "title": "에러 로그 수집",
+        "description": "현재 에러 패턴과 발생 빈도를 분석한다",
+        "phase": "ANALYZING",
+        "status": "DONE",              // BLOCKED → TODO → IN_PROGRESS → DONE
+        "assignee": "gemini-analyst",
+        "dependsOn": [],               // 이 티켓이 의존하는 다른 티켓 ID 목록
+        "createdAt": "2026-02-28T04:30:00Z",
+        "startedAt": "2026-02-28T04:30:05Z",
+        "completedAt": "2026-02-28T04:32:00Z",
+        "findings": "findings/analysis.md",
+        "report": "Root cause: Map.of() with null value"
+      }
+
+      관계 모델:
+        - parent-of: .party/ 디렉토리 자체 = 요청(request), tickets/ = 자식. 디렉토리 구조가 표현
+        - relates-to: 같은 .party/ 안에 있으면 동일 요청. 별도 필드 불필요
+        - blocks/blocked-by: dependsOn이 이것. 역방향은 state machine이 계산
+
+      상태 전환 규칙:
+        BLOCKED → TODO     : dependsOn의 모든 티켓이 DONE일 때
+        TODO    → IN_PROGRESS : 해당 에이전트가 스폰되어 pick up
+        IN_PROGRESS → DONE : 에이전트가 findings 제출
+        DONE → (불변)
+
+  [ ] 티켓 원자화 프로토콜 (/party 실행 시 Host가 수행)
+      1. 요청을 분석하여 원자적 작업 단위로 분해
+      2. 각 작업 단위를 TICKET-NNN.json으로 생성
+      3. 의존성(dependsOn) 설정
+      4. 각 티켓에 assignee(에이전트 타입+역할) 배정
+      5. Agent Teams TaskCreate와 1:1 매핑하여 태스크 생성
+
+      예시 (bugfix 요청):
+      ┌─────────────┐
+      │  TICKET-001  │  에러 로그 수집         (gemini)   dependsOn: []
+      │  TICKET-002  │  소스 영향 범위 분석     (claude)   dependsOn: []
+      └──────┬───┬──┘
+             │   │
+             ▼   ▼
+      ┌─────────────┐
+      │  TICKET-003  │  코드 수정              (codex)    dependsOn: [001, 002]
+      └──────┬──────┘
+             │
+             ▼
+      ┌─────────────┐
+      │  TICKET-004  │  테스트 작성 + 실행      (codex)    dependsOn: [003]
+      └─────────────┘
+
   [ ] .party/ 디렉토리 자동 초기화 (/party 실행 시)
   [ ] 각 단계 에이전트가 findings/{phase}.md에 결과 저장
       - analysis.md: 에러 로그, 발생 횟수, 영향 범위, 근본 원인
@@ -1238,19 +1391,42 @@ Step 12: 파일 기반 핸드오프 구현
   [ ] 원자적 JSON 쓰기 (OMC atomic-write 패턴 — 크래시 안전)
   [ ] SendMessage는 시그널용으로만 사용 ("analysis 완료, design 시작 가능")
 
-Step 13: 요청 단위 팀 구성 (Per-Request Team Formation)
+Step 13: 요청 단위 팀 구성 + 스폰 완료 검증 (Per-Request Team Formation)
+  > 핵심 추가: 팀 프리셋이 요구하는 멤버를 전원 스폰했는지 검증하는 gate.
+  > 모델이 팀원을 안 스폰하거나 일부만 스폰하는 경우, 프롬프트만으로는 강제 불가.
+  > L2(PostToolUse 검증)와 연동하여 기계적으로 강제한다.
+
   [ ] /party 커맨드 실행 시:
       1. teams/*.md의 trigger_keywords로 팀 자동 매칭
       2. TeamCreate(team_name="party-{team}-{timestamp}")
-      3. 워크플로우 단계별 TaskCreate (blockedBy 의존성 체인)
-      4. 팀 멤버별 Task(subagent_type, team_name, name) 스폰
-      5. Worker Preamble 주입 (OMC preamble.js 패턴)
-         - 역할, 태스크, 팀 컨텍스트
+      3. 티켓 원자화 (Step 12의 프로토콜)
+         → 요청을 원자 티켓으로 분해, .party/tickets/ 생성
+      4. 티켓별 TaskCreate (dependsOn → blockedBy 의존성 체인)
+      5. 팀 멤버별 Task(subagent_type, team_name, name) 스폰
+      6. Worker Preamble 주입 (OMC preamble.js 패턴)
+         - 역할, 담당 티켓 ID 목록, 팀 컨텍스트
          - SendMessage 사용법, TaskUpdate 사용법
          - findings/ 저장 지시
          - shutdown 프로토콜
-      6. TaskList 모니터링 → 단계 전환 → 승인 게이트
-      7. 팀 종료 (SendMessage shutdown_request → 응답 대기 → TeamDelete)
+      7. ★ 팀 스폰 완료 검증 gate ★
+         → session.json의 members[].spawned 플래그 전원 true 확인
+         → 미스폰 멤버 감지 시 L1 리마인더 주입 + L2 phase 전환 차단
+         → 전원 스폰 완료 후에만 ANALYZING phase 진입 허용
+      8. TaskList 모니터링 → 티켓 완료 감지 → 단계 전환 → 승인 게이트
+      9. 팀 종료 (SendMessage shutdown_request → 응답 대기 → TeamDelete)
+
+  [ ] 팀 스폰 완료 검증 로직 (hooks/post-tool-verify.mjs 내)
+      스폰 검증 흐름:
+        /party 실행 → 팀 프리셋 매칭 → TeamCreate → 멤버 스폰 시작
+          → PostToolUse 훅: Task 호출 감지 → session.json members[].spawned = true
+          → 모든 멤버 spawned 확인 → team_spawn_verified 이벤트 발행
+          → ANALYZING phase 진입 허용
+
+      멤버 누락 대응:
+        - 1차: L1 리마인더 "codex-builder 아직 안 스폰됨. 스폰하세요"
+        - 2차: L1 리마인더 반복 (최대 3회)
+        - 3차 이후: 사용자에게 에스컬레이션 "팀 구성 실패. 수동 개입 필요"
+
   [ ] 세션 격리: 동시 파이프라인 방지 (.party/session.json 존재 체크)
   [ ] 에이전트 헬스 체크: 일정 시간 무응답 시 리드가 감지 + 재스폰 or 에스컬레이션
 
@@ -1478,10 +1654,11 @@ my-skill/
 
 ---
 
-## 17. OMC(oh-my-claudecode) 채택 패턴
+## 17. OMC + TaskForce.AI 채택 패턴
 
-> Phase 3에서 OMC의 검증된 패턴을 선택적으로 채택한다.
-> OMC 포크가 아닌, 필요한 아키텍처 패턴만 가져와서 ai-party에 맞게 구현.
+> Phase 3에서 OMC와 TaskForce.AI의 검증된 패턴을 선택적으로 채택한다.
+> 포크가 아닌, 필요한 아키텍처 패턴만 가져와서 ai-party에 맞게 구현.
+> 상세 비교 분석: [docs/architecture-direction.md](docs/architecture-direction.md)
 
 ### 17.1 채택하는 패턴
 
@@ -1504,15 +1681,37 @@ my-skill/
 | **OMX Interop** | ai-party는 Claude Code 단일 플랫폼. 크로스 도구 불필요 |
 | **31개 훅 전체** | 필요한 훅만 선택적 구현. 과도한 훅은 디버깅 어렵게 함 |
 
-### 17.3 ai-party만의 차별점
+### 17.3 TaskForce.AI 채택 패턴
 
-| 영역 | OMC | ai-party |
-|------|-----|----------|
-| **에이전트 협업** | 계층적 (worker→lead 보고만) | P2P 메시징 가능 (SendMessage) |
-| **팀 구성** | 고정 파이프라인 (plan→prd→exec→verify→fix) | 팀 프리셋 기반 동적 구성 |
-| **외부 AI** | Gemini/Codex 통합 deprecated | Gemini CLI + Codex CLI 적극 활용 |
-| **승인 게이트** | 없음 (자동 실행) | 필수 (사람이 최종 결정) |
-| **플랫폼 비전** | Claude Code 플러그인으로 완결 | 별도 AI OPS 플랫폼의 실행 엔진 |
+> OMC와 별개로, TaskForce.AI의 검증된 패턴도 선택적으로 채택한다.
+
+| TaskForce.AI 패턴 | ai-party 적용 | 이유 |
+|-------------------|--------------|------|
+| **티켓 원자화** (TASK-001, TASK-002) | `.party/tickets/TICKET-NNN.json` | phase만 있으면 칸반에 카드 4개뿐. 실제 가시성 확보 |
+| **dependsOn 의존성** (DAG) | 티켓 `dependsOn` 필드 | Agent Teams TaskCreate의 blockedBy와 1:1 매핑 |
+| **칸반 대시보드 UX** | `/party-board` → Phase 5 웹 대시보드 | 티켓 단위 칸반이 사용자 경험을 근본적으로 바꿈 |
+| **이벤트 스트림** | `events.ndjson` 정형화 | 대시보드 데이터 소스. 파일 폴링 대신 이벤트 구독 |
+
+**채택하지 않는 TaskForce.AI 패턴:**
+
+| 패턴 | 이유 |
+|------|------|
+| **MCP Tool 기반 핸드오프** | Agent Teams는 MCP 기반이 아님. 서브에이전트 MCP 접근 검증 안 됨. Phase 3 후 검토 |
+| **MCP 서버 번들** | 플러그인 내 MCP 서버 가능 여부 미확인. 파일 기반이 검증된 경로 |
+| **에이전트 self-reporting** | PostToolUse 훅이 이미 자동 추적. 에이전트가 직접 보고할 필요 없음 |
+
+### 17.4 ai-party만의 차별점
+
+| 영역 | OMC | TaskForce.AI | ai-party |
+|------|-----|-------------|----------|
+| **오케스트레이션** | tmux + 파일 | MCP Tool | Agent Teams API |
+| **에이전트 협업** | 계층적 보고 | MCP Tool 호출 | P2P 메시징 (SendMessage) |
+| **팀 구성** | 고정 파이프라인 | 동적 | 팀 프리셋 기반 동적 구성 |
+| **외부 AI** | deprecated | Claude only | Gemini CLI + Codex CLI 적극 활용 |
+| **승인 게이트** | 없음 (자동) | 웹 UI | 필수 (CLI → 웹 진화) |
+| **강제력** | 프롬프트 advisory | MCP 채널 제한 | 3계층 기계적 강제 (L3/L2/L1) |
+| **태스크 관리** | SQLite 풀 | MCP 티켓 | 파일 기반 티켓 + Agent Teams TaskCreate |
+| **플랫폼 비전** | 플러그인 완결 | 대시보드 | 실행 엔진 + AI OPS 플랫폼 |
 
 ---
 
@@ -1600,6 +1799,8 @@ AI OPS 자동화 플랫폼
 
 - multi-delegate plugin (Phase 1 완료): https://github.com/atototo/claude-plugins
 - oh-my-claudecode (OMC): https://github.com/Yeachan-Heo/oh-my-claudecode — Phase 3 아키텍처 패턴 참조
+- TaskForce.AI: https://taskforce.ai — 티켓 원자화 + 칸반 대시보드 패턴 참조
 - oh-my-opencode: https://github.com/code-yeongyu/oh-my-opencode — 프롬프트 기반 라우팅 참조
+- 아키텍처 방향 종합 분석: docs/architecture-direction.md (OMC + TaskForce.AI + ai-party 비교)
 - 설계 문서: multi-delegate-plugin-design.md
 - 모노레포 설계: claude-plugins-monorepo-design.md
