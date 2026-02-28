@@ -47,16 +47,42 @@ if (!teamName.startsWith("party-")) {
   process.exit(0);
 }
 
-// ── 멱등성: 유효한 세션이 있으면 스킵 (stale/invalid 세션은 덮어쓰기) ──
+// ── 멱등성: 같은 팀의 유효한 세션만 재사용 ──
 const cwd = process.cwd();
 const existingSession = readSession(cwd);
 if (existingSession && isSessionValid(existingSession) && !isSessionStale(existingSession)) {
-  const msg = {
-    continue: true,
-    systemMessage: `[ai-party] Session already exists (${existingSession.id}, phase: ${existingSession.phase}). Skipping re-initialization.`,
-  };
-  process.stdout.write(JSON.stringify(msg));
-  process.exit(0);
+  // teamName이 다르면 새 세션으로 덮어쓰기
+  const existingTeamMatch = existingSession.id && existingSession.id.includes(teamName);
+  if (existingTeamMatch) {
+    // 같은 팀 — pluginRoot/starting_phase 누락 시 패치
+    let patched = false;
+    if (!existingSession.pluginRoot) {
+      existingSession.pluginRoot = join(__dirname, "..");
+      patched = true;
+    }
+    if (!existingSession.starting_phase) {
+      // 팀 타입에서 starting_phase 파싱 시도
+      const tt = matchTeamType(teamName);
+      if (tt) {
+        const mdPath = join(TEAMS_DIR, `${tt}.md`);
+        try {
+          const content = readFileSync(mdPath, "utf-8");
+          existingSession.starting_phase = parseStartingPhase(content);
+          patched = true;
+        } catch { /* ignore */ }
+      }
+    }
+    if (patched) {
+      try { writeSession(existingSession, cwd); } catch { /* ignore */ }
+    }
+    const msg = {
+      continue: true,
+      systemMessage: `[ai-party] Session already exists (${existingSession.id}, phase: ${existingSession.phase})${patched ? " — patched missing fields." : ". Skipping re-initialization."}`,
+    };
+    process.stdout.write(JSON.stringify(msg));
+    process.exit(0);
+  }
+  // teamName이 다르면 → 아래로 진행하여 새 세션 생성
 }
 
 // ── 팀 타입 매칭 (파일 기반) ──
