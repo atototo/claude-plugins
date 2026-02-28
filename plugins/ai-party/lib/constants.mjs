@@ -51,6 +51,32 @@ export const AGENT_MODEL_MAP = {
 export const PARTY_DIR = ".party";
 export const SESSION_FILE = ".party/session.json";
 export const FINDINGS_DIR = ".party/findings";
+export const TICKETS_DIR = ".party/tickets";
+export const EVENTS_FILE = ".party/events.ndjson";
 
 // ── Fix loop limit ──
 export const MAX_FIX_ATTEMPTS = 3;
+
+// ── Ticket statuses ──
+export const TICKET_STATUSES = {
+  BLOCKED: "BLOCKED",
+  TODO: "TODO",
+  IN_PROGRESS: "IN_PROGRESS",
+  DONE: "DONE",
+};
+
+// ── Event types (events.ndjson) ──
+export const EVENT_TYPES = {
+  PIPELINE_STARTED: "pipeline_started",
+  PIPELINE_COMPLETED: "pipeline_completed",
+  PHASE_CHANGED: "phase_changed",
+  TICKET_CREATED: "ticket_created",
+  TICKET_UPDATED: "ticket_updated",
+  FINDINGS_SUBMITTED: "findings_submitted",
+  APPROVAL_REQUESTED: "approval_requested",
+  DECISION_MADE: "decision_made",
+  AGENT_SPAWNED: "agent_spawned",
+  AGENT_COMPLETED: "agent_completed",
+  TEAM_SPAWN_VERIFIED: "team_spawn_verified",
+  ERROR_OCCURRED: "error_occurred",
+};

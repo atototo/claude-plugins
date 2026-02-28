@@ -1,101 +1,55 @@
-## AI Party Mode — 에이전트 협업 가이드
+## AI Party Mode — 자동 팀 오케스트레이션
 
-**핵심 원칙: 코딩 작업을 받으면 에이전트 위임을 먼저 검토하라. 직접 처리하기 전에 "이 작업에 적합한 에이전트가 있는가?"를 항상 자문한다.**
+**핵심 원칙: 모든 코딩 작업은 auto-delegate 훅에 의해 자동으로 팀 모드로 처리된다. 직접 처리하지 마라.**
 
-당신은 오케스트레이터(Lead)이다. 에이전트를 활용하면 병렬 처리, 전문화된 분석, 외부 CLI 연동 등의 이점이 있다. 단, 모든 작업을 반드시 위임해야 하는 것은 아니다.
-
-### 판단 기준
-
-| 상황 | 권장 행동 |
-|------|-----------|
-| 코드 리뷰, 아키텍처 평가, 설계 판단 | `ai-party:claude-agent` 위임 — 깊은 추론에 특화 |
-| 대규모 분석, 문서 생성, 로그 분석, 멀티파일 리뷰 | `ai-party:gemini-agent` 위임 — Gemini CLI의 대용량 컨텍스트 활용 |
-| 단일 파일 코드 생성/수정, 테스트, DTO, 유틸 | `ai-party:codex-agent` 위임 — Codex CLI의 코드 특화 |
-| 복합 작업 (리뷰+생성 등) | 여러 에이전트를 순차/병렬 스폰 |
-| 간단한 수정 (오타, 설정 변경, 1-2줄 수정) | Host 직접 처리 가능 |
-| 보안 민감 로직 (auth, encryption, secrets) | Host 직접 처리 — 에이전트 위임 금지 |
-
-### 동작 흐름
+### 자동 위임 흐름
 
 ```
 사용자 요청 수신
   ↓
-코딩 작업인가? ──No──→ 직접 처리
-  ↓ Yes
-에이전트가 더 적합한가? ──No──→ 직접 처리 (간단한 수정 등)
-  ↓ Yes
-적합한 에이전트 선택 → Task 도구로 스폰
+auto-delegate 훅 발동 → systemMessage 주입
   ↓
-에이전트 완료 → 훅이 검수 체크리스트 주입
-  ↓
-Host가 검수 수행 (필수) → 사용자에게 결과 전달
+systemMessage 지시에 따라 팀 구성:
+  1. teams/*.md에서 trigger_keywords로 팀 선택
+  2. TeamCreate → Leader 스폰 → Worker 전원 스폰
+  3. Leader가 파이프라인 관리
+  4. Host는 승인 게이트만 담당
 ```
 
-### 에이전트 스폰 구문
+### 중요 규칙
 
-```
-Task(subagent_type="ai-party:claude-agent", prompt="...", description="...")
-Task(subagent_type="ai-party:gemini-agent", prompt="...", description="...")
-Task(subagent_type="ai-party:codex-agent", prompt="...", description="...")
-```
+- **Skill(ai-party:party-mode)을 직접 호출하지 마라.** auto-delegate 훅이 systemMessage로 직접 지시한다.
+- party-mode 스킬은 `/party` 또는 `/party-team` 슬래시 커맨드 전용이다.
+- 사용자 메시지를 받으면 systemMessage의 지시를 따라 팀을 구성하라.
+- 복잡도 판단, 싱글 에이전트 모드 선택을 하지 마라 — 항상 팀 모드이다.
 
-### 활용 패턴 — 단독 또는 조합
+### auto-delegate가 건너뛰는 경우 (훅이 exit 0)
 
-에이전트는 단독으로도, 조합해서도 자유롭게 사용한다.
+- 인사/잡담 (안녕, hi, thanks 등)
+- 단순 확인 (네, ok, 알겠어 등)
+- git 관련 (커밋, 머지, 푸시 등)
+- 슬래시 커맨드 (/ 로 시작)
+- 대화 이어가기 (계속, go on 등)
 
-**단독 사용**:
+이 경우에만 Host가 직접 처리할 수 있다.
 
-| 요청 | 에이전트 | 이유 |
-|------|----------|------|
-| "이 코드 리뷰해줘" | `claude-agent` 단독 | 리뷰만 필요, 수정 없음 |
-| "이 프로젝트 문서 만들어줘" | `gemini-agent` 단독 | 대용량 컨텍스트 분석 + 문서 생성 |
-| "이 파일에 유닛 테스트 추가해줘" | `codex-agent` 단독 | 단일 파일 코드 생성 |
+### 팀 명시 커맨드
 
-**조합 사용**:
-
-| 요청 | 조합 | 실행 방식 |
-|------|------|-----------|
-| "리뷰하고 개선된 버전 만들어줘" | `claude-agent` + `codex-agent` | 병렬 또는 순차 |
-| "분석하고 문서 만들어줘" | `gemini-agent` 단독으로 충분 | 일괄 위임 |
-| "리팩토링하고 테스트도 작성해줘" | `codex-agent` 2회 (리팩토링 → 테스트) | 순차 |
-| "아키텍처 리뷰 후 전체 문서화" | `claude-agent` → `gemini-agent` | 순차 (리뷰 결과를 문서화에 반영) |
-| "프로젝트 분석하고 리뷰해줘" | `gemini-agent` + `claude-agent` | 병렬 (각자 강점 활용) |
-
-**Host 직접 처리**:
-
-| 요청 | 이유 |
-|------|------|
-| "이 오타 고쳐줘" | 1줄 수정, 위임 오버헤드 > 직접 처리 |
-| "설정 값 변경해줘" | 단순 값 교체 |
-| "이 버그 고쳐줘" (원인 명확) | 간단한 수정이면 직접, 복잡하면 에이전트 활용 |
-
-### 검수 프로세스 (필수)
-
-에이전트 작업 완료 시 PostToolUse 훅이 자동으로 검수 체크리스트를 주입한다.
-
-**Host의 검수 의무:**
-1. 훅이 주입한 체크리스트를 확인한다
-2. `git diff`로 변경 내역을 직접 검토한다
-3. 테스트 결과가 있으면 확인한다 (FAIL 시 수정 필수)
-4. 로직 정확성, 엣지 케이스, 기존 코드 호환성을 판단한다
-5. 문제 없으면 사용자에게 결과 보고, 문제 있으면 수정 또는 재위임
-
-**검수 없이 사용자에게 결과를 전달하지 않는다.**
-
-### 팀 기반 워크플로우
-
-복합 작업(분석+설계+구현+리뷰 필요)에는 팀 모드를 사용한다:
-- `/party <task>` — 자동 팀 선택 (trigger_keywords 매칭)
+- `/party <task>` — 자동 팀 선택
 - `/party-team <team> <task>` — 팀 지정 (bugfix, devops, dev-backend, dev-frontend)
 - `/party-status` — 진행 상황 확인
 
-팀 모드에서는 Agent Teams(TeamCreate/SendMessage)로 에이전트가 직접 메시징하며 협업한다.
-모든 결과는 `.party/findings/`에 저장되고, 최종 승인 게이트를 거친다.
+### 에이전트 참고
 
-팀 모드의 에이전트에게는 개별 검수 훅 대신 팀 워크플로우 내 리뷰 에이전트가 검수를 담당한다.
+| Agent | subagent_type | 용도 |
+|-------|---------------|------|
+| Claude (opus) | `ai-party:claude-agent` | 코드 리뷰, 아키텍처, 설계 |
+| Gemini (CLI) | `ai-party:gemini-agent` | 대규모 분석, 문서, 로그 |
+| Codex (CLI) | `ai-party:codex-agent` | 단일 파일 코드 생성, 테스트 |
+| Leader (opus) | `ai-party:leader-agent` | 파이프라인 오케스트레이션 |
 
 ### 위임 제약 조건
 
 - 위임 프롬프트에 명시적 대상 파일 경로를 포함한다.
-- Codex 실패 시 같은 thread_id로 재시도 우선 (최대 2회).
 - 에이전트 결과의 최종 승인/거부는 항상 Host가 판단한다.
+- 보안 민감 로직 (auth, encryption, secrets)은 Host 직접 처리.

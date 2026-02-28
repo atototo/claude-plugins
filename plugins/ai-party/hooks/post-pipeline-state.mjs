@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { STATES, FINDINGS_DIR } from "../lib/constants.mjs";
 import { readSession } from "../lib/session.mjs";
 import { transition } from "../lib/state-machine.mjs";
+import { arePhaseTicketsDone } from "../lib/tickets.mjs";
 
 let payload;
 try {
@@ -63,9 +64,12 @@ if (!phaseConfig) {
   process.exit(0);
 }
 
-// artifact 존재 확인
-if (!existsSync(phaseConfig.artifact)) {
-  // 아직 artifact가 없으면 전환하지 않음
+// Check: artifact exists OR all phase tickets done
+const artifactExists = existsSync(phaseConfig.artifact);
+const ticketsDone = arePhaseTicketsDone(session.phase);
+
+if (!artifactExists && !ticketsDone) {
+  // Neither condition met → don't transition
   process.exit(0);
 }
 

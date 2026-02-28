@@ -1,7 +1,9 @@
 // state-machine.mjs — pipeline state transition engine
 
-import { STATES, MAX_FIX_ATTEMPTS } from "./constants.mjs";
+import { STATES, MAX_FIX_ATTEMPTS, EVENT_TYPES } from "./constants.mjs";
 import { readSession, writeSession, hasRequiredArtifact } from "./session.mjs";
+import { arePhaseTicketsDone } from "./tickets.mjs";
+import { emit } from "./events.mjs";
 
 // ── Transition table: { fromState: Set(allowedTargets) } ──
 const TRANSITIONS = {
@@ -56,16 +58,21 @@ export function transition(targetState, reason, opts = {}) {
     };
   }
 
-  // Guard: check required artifact (unless skipped or from IDLE)
+  // Guard: check required artifact OR ticket completion (unless skipped or from IDLE)
   if (
     GUARDED_PHASES.has(targetState) &&
     !opts.skipGuard &&
     current !== STATES.IDLE
   ) {
-    if (!hasRequiredArtifact(targetState, cwd)) {
+    // Ticket-based guard: current phase's tickets must all be DONE
+    const ticketsDone = arePhaseTicketsDone(current, cwd);
+    // Artifact-based guard: backward compat fallback
+    const artifactExists = hasRequiredArtifact(targetState, cwd);
+
+    if (!ticketsDone && !artifactExists) {
       return {
         ok: false,
-        error: `Guard failed: missing artifact for ${targetState}`,
+        error: `Guard failed: phase ${current} has incomplete tickets and missing artifact for ${targetState}`,
       };
     }
   }
@@ -82,6 +89,15 @@ export function transition(targetState, reason, opts = {}) {
         reason: `Fix loop exceeded (${MAX_FIX_ATTEMPTS} attempts)`,
       });
       writeSession(session, cwd);
+      emit(EVENT_TYPES.PHASE_CHANGED, {
+        from: current,
+        to: STATES.FAILED,
+        reason: `Fix loop exceeded (${MAX_FIX_ATTEMPTS} attempts)`,
+      }, { cwd, sessionId: session.id });
+      emit(EVENT_TYPES.PIPELINE_COMPLETED, {
+        finalPhase: STATES.FAILED,
+        completedAt: session.completed_at,
+      }, { cwd, sessionId: session.id });
       return {
         ok: false,
         error: `Fix loop exceeded ${MAX_FIX_ATTEMPTS} attempts — moved to FAILED`,
@@ -104,6 +120,21 @@ export function transition(targetState, reason, opts = {}) {
   }
 
   writeSession(session, cwd);
+
+  // Emit events
+  emit(EVENT_TYPES.PHASE_CHANGED, {
+    from: current,
+    to: targetState,
+    reason: reason || "",
+  }, { cwd, sessionId: session.id });
+
+  if ([STATES.DONE, STATES.ROLLED_BACK, STATES.FAILED].includes(targetState)) {
+    emit(EVENT_TYPES.PIPELINE_COMPLETED, {
+      finalPhase: targetState,
+      completedAt: session.completed_at,
+    }, { cwd, sessionId: session.id });
+  }
+
   return { ok: true, session };
 }
 
