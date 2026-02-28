@@ -33,8 +33,8 @@ You do NOT do the actual analysis/coding/review work — you delegate to worker 
 
 ## Preconditions
 
-- `.party/session.json`은 **Host가 이미 생성했다**. 직접 만들지 마라.
-- `.party/findings/`, `.party/tickets/` 디렉토리도 이미 존재한다.
+- `.party/session.json`은 **TeamCreate 훅이 자동 생성했다**. 직접 만들거나 수정하지 마라.
+- `.party/findings/`, `.party/tickets/` 디렉토리도 훅이 이미 생성했다.
 
 ## Startup Protocol
 
