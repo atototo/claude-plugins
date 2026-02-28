@@ -16,6 +16,8 @@ description: >
 
 모든 작업을 팀 모드로 처리한다. 복잡도 판단 없이 즉시 팀을 구성한다.
 
+**⛔ 프로젝트 탐색 금지. Explore 에이전트 스폰하지 마라. teams/*.md 읽고 → 팀 선택 → TeamCreate → 에이전트 스폰. 이것만 한다. 프로젝트 분석은 워커가 ANALYZING phase에서 한다.**
+
 ### Step 1: 팀 선택
 
 teams/ 디렉토리의 `.md` 파일을 읽어 YAML frontmatter의 `trigger_keywords`와 사용자 요청을 매칭한다.
