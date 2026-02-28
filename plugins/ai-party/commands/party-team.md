@@ -38,6 +38,7 @@ Read("teams/{team_name}.md") → parse frontmatter + workflow
 ### Step 3 이후: /party Step 2부터 동일 흐름
 
 팀 선택이 이미 확정되었으므로 키워드 매칭을 건너뛰고, /party의 Step 2(팀 안내)부터 동일한 흐름을 따른다.
+Leader + Worker 전원을 Host가 스폰하고, Leader가 파이프라인을 관리한다.
 
 ## 사용 예시
 

@@ -1,5 +1,18 @@
 # Team Orchestration Protocol
 
+## Architecture
+
+```
+사용자 ⇄ Host (supervisor) ⇄ Leader (orchestrator) ⇄ Workers (specialists)
+```
+
+- **Host**: 팀 생성, 전원 스폰, 사용자와의 인터페이스, 최종 승인 게이트
+- **Leader**: 파이프라인 관리, 태스크 생성/할당, 상태 전환, findings 수집
+- **Workers**: 분석, 설계, 구현, 리뷰 등 실제 작업 수행
+
+**제약사항**: 공식 Agent Teams 스펙에 따라 팀원은 다른 팀원을 스폰할 수 없다.
+따라서 Host가 leader와 모든 worker를 직접 스폰한다.
+
 ## Team Selection
 
 Read `teams/*.md` files and match `trigger_keywords` from YAML frontmatter:
@@ -13,67 +26,67 @@ Read `teams/*.md` files and match `trigger_keywords` from YAML frontmatter:
 
 No match? Propose a dynamic team composition using available agents.
 
-## Initialize .party/
+## Initialize Team
 
-```bash
-mkdir -p .party/findings .party/approvals
-```
-
-Create `.party/session.json`:
-```json
-{
-  "id": "party-{team}-{YYYYMMDD}-{HHmmss}",
-  "team": "{team}",
-  "task": "{user task description}",
-  "status": "ANALYZING",
-  "created_at": "{ISO 8601}",
-  "members": [
-    { "name": "{agent-role}", "agent": "{agent-type}", "role": "{role}" }
-  ]
-}
-```
-
-## Create Team
+### Host creates team and spawns all members:
 
 ```
 TeamCreate(team_name="party-{team}-{timestamp}")
 ```
 
-## Create Tasks with Dependencies
+### Spawn leader:
+```
+Task(
+  subagent_type="ai-party:leader-agent",
+  team_name="party-{team}-{timestamp}",
+  name="leader",
+  prompt="<team info, member list, workflow, task>"
+)
+```
 
-Per workflow phase from team preset, use `blockedBy` for dependency chains.
-
-Example (bugfix team):
-1. TaskCreate("Analyze bug") — no blockers
-2. TaskCreate("Design fix") — blockedBy: [1]
-3. TaskCreate("Implement fix") — blockedBy: [2]
-4. TaskCreate("Review changes") — blockedBy: [3]
-
-## Spawn Team Members
-
-For each member, use the prompt template from [prompt-templates.md](prompt-templates.md):
-
+### Spawn workers (per team preset):
 ```
 Task(
   subagent_type="ai-party:{agent}",
   team_name="party-{team}-{timestamp}",
   name="{agent}-{role}",
-  prompt="<from prompt template>"
+  prompt="<from prompt template, with instruction to wait for leader>"
 )
 ```
 
-## Monitor Progress
+## Leader Manages Pipeline
 
-Use TaskList to track phase completion. Update `.party/session.json` status:
+Leader handles the full pipeline independently:
+
+1. Creates `.party/` directory and `session.json`
+2. Creates tasks per workflow with dependencies (TaskCreate + addBlockedBy)
+3. Sends instructions to workers (SendMessage)
+4. Monitors progress (TaskList)
+5. Transitions state at phase boundaries (state-cli.mjs)
+6. Collects findings and reports to Host
+
+## State Transitions (Leader responsibility)
 
 ```
-ANALYZING → PLANNING → EXECUTING → REVIEWING → AWAITING_APPROVAL
+IDLE → ANALYZING → PLANNING → EXECUTING → REVIEWING → AWAITING_APPROVAL
 ```
 
-When all phases complete, proceed to [approval-gate.md](approval-gate.md).
+Leader uses `state-cli.mjs`:
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/lib/state-cli.mjs" transition {STATE} "{reason}"
+```
+
+## Approval Gate
+
+When leader reports completion, Host:
+1. Reads `.party/findings/` files
+2. Checks `git diff --stat`
+3. Presents summary to user (see [approval-gate.md](approval-gate.md))
+4. Sends user decision to leader via SendMessage
 
 ## Shutdown
 
 After approval/rejection:
-1. SendMessage(type="shutdown_request") to all members
-2. Update session.json with final status (APPROVED / REJECTED)
+1. Leader sends shutdown_request to all workers
+2. Host sends shutdown_request to leader
+3. Host runs TeamDelete

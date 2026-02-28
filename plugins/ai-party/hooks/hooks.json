@@ -1,6 +1,28 @@
 {
-  "description": "Auto-delegate coding tasks + verify agent outputs",
+  "description": "Auto-delegate coding tasks + enforce pipeline state + verify agent outputs",
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-enforce.mjs",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-model-inject.mjs",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "matcher": "",
@@ -21,6 +43,11 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/post-agent-verify.mjs",
             "timeout": 90
+          },
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/post-pipeline-state.mjs",
+            "timeout": 5
           }
         ]
       }
