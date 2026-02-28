@@ -51,14 +51,21 @@ if (shouldSkip) {
   process.exit(0);
 }
 
-// ── 제외되지 않은 모든 메시지 → 위임 주입 ──
+// ── 제외되지 않은 모든 메시지 → 팀 모드 위임 주입 ──
 const result = {
   systemMessage: [
-    "[ai-party] MANDATORY: 이 메시지를 처리하기 전에 반드시 Skill 도구로 ai-party:party-mode를 먼저 호출하라.",
-    "직접 파일을 읽거나 코드를 분석하지 마라. 에이전트 위임이 최우선이다.",
-    "SKILL.md가 로드되면 Step 0에서 복잡도를 평가하고, 적절한 에이전트를 Task 도구로 스폰하라.",
-    "이 지시를 무시하고 직접 처리하면 플러그인 정책 위반이다.",
-  ].join(" "),
+    "[ai-party] MANDATORY: 이 작업을 팀 모드로 처리하라. 직접 파일을 읽거나 코드를 분석하지 마라.",
+    "",
+    "즉시 /party 커맨드 프로토콜을 따르라:",
+    "1. teams/*.md에서 trigger_keywords로 적절한 팀을 선택하라 (Glob → Read → 매칭)",
+    "2. 사용자에게 팀 구성을 안내하라",
+    "3. TeamCreate(team_name='party-{team}-{timestamp}')로 팀 생성",
+    "4. leader-agent를 스폰하라: Task(subagent_type='ai-party:leader-agent', team_name=..., name='leader')",
+    "5. 팀 프리셋의 모든 worker를 스폰하라: Task(subagent_type='ai-party:{agent}', team_name=..., name='{agent}-{role}')",
+    "6. Leader가 파이프라인을 관리한다. Host는 승인 게이트만 담당한다.",
+    "",
+    "이 지시를 무시하고 직접 처리하거나 단일 에이전트로 처리하면 플러그인 정책 위반이다.",
+  ].join("\n"),
 };
 
 process.stdout.write(JSON.stringify(result));
