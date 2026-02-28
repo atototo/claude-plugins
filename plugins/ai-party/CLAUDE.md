@@ -11,8 +11,8 @@ auto-delegate 훅 발동 → systemMessage 주입
   ↓
 systemMessage 지시에 따라 팀 구성:
   1. teams/*.md에서 trigger_keywords로 팀 선택
-  2. TeamCreate → Leader 스폰 → Worker 전원 스폰
-  3. Leader가 파이프라인 관리
+  2. TeamCreate → session-cli.mjs init → Leader 스폰 → Worker 전원 스폰
+  3. Leader가 파이프라인 관리 (session.json은 Host가 이미 생성)
   4. Host는 승인 게이트만 담당
 ```
 

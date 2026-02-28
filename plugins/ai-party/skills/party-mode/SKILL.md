@@ -31,17 +31,32 @@ Glob("teams/*.md") → Read each → parse trigger_keywords → score against ta
 선택된 팀, 멤버 구성, 워크플로우를 간략히 안내한다.
 Leader가 파이프라인을 관리하고, Host는 최종 승인만 담당함을 설명한다.
 
-### Step 3: TeamCreate + 전원 스폰
+### Step 3: TeamCreate + Session 초기화 + 전원 스폰
 
 Follow [team-orchestration.md](team-orchestration.md) protocol:
 1. TeamCreate(team_name="party-{team}-{timestamp}")
-2. Leader 스폰: Task(subagent_type="ai-party:leader-agent", team_name=..., name="leader")
-3. Worker 전원 스폰: Task(subagent_type="ai-party:{agent}", team_name=..., name="{agent}-{role}")
-4. Prompt templates: [prompt-templates.md](prompt-templates.md)
+2. **Session 초기화 (Leader 스폰 전 필수)**:
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/lib/session-cli.mjs" init --team "{team}" --task "{task}" --members '[...]'
+   ```
+3. Leader 스폰: Agent(subagent_type="ai-party:leader-agent", team_name=..., name="leader")
+4. Worker 전원 스폰: Agent(subagent_type="ai-party:{agent}", team_name=..., name="{agent}-{role}")
+5. Prompt templates: [prompt-templates.md](prompt-templates.md)
 
 ### Step 4: 승인 게이트
 
 Leader가 보고하면 [approval-gate.md](approval-gate.md)에 따라 승인/거부/수정 결정.
+
+### Step 5: Shutdown
+
+**모든 팀원이 종료될 때까지 TeamDelete를 호출하지 마라.**
+
+Follow [team-orchestration.md](team-orchestration.md) Shutdown Protocol:
+1. 사용자 결정을 Leader에게 전달
+2. Leader가 워커에게 shutdown_request 전송 → Leader idle 대기
+3. Leader에게 shutdown_request 전송 → Leader shutdown 확인
+4. 잔여 워커가 있으면 직접 shutdown_request 전송 → 전원 종료 확인 (최대 60초)
+5. **전원 종료 후에만** TeamDelete 호출
 
 ## Agent Reference
 

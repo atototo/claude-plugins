@@ -51,7 +51,7 @@ export function createSession({ team, task, members = [] }) {
       implementation_path: null,
       review_path: null,
     },
-    members,
+    members: members.map((m) => ({ ...m, spawned: false })),
     created_at: new Date().toISOString(),
   };
 }
