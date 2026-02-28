@@ -40,13 +40,16 @@ You do NOT do the actual analysis/coding/review work — you delegate to worker 
 
 When spawned, you receive team info and task description in your prompt.
 
-### Step 1: Start Pipeline
+### Step 1: Read Session & Verify
 
-**첫 번째 행동**: 상태 전환으로 파이프라인을 시작한다.
+**첫 번째 행동**: 세션 정보를 확인한다.
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/lib/state-cli.mjs" transition ANALYZING "pipeline started"
+cat .party/session.json | head -20
 ```
-(분석 단계가 없는 팀은 PLANNING으로 직행)
+- `pluginRoot` 필드에서 플러그인 경로를 확인한다 (이후 state-cli.mjs 호출에 사용).
+- `starting_phase` 필드에서 시작 phase를 확인한다.
+- `members` 필드에서 팀원 구성을 확인한다.
+- **초기 상태 전환(IDLE → 첫 phase)은 훅이 자동 처리한다. 수동 전환 불필요.**
 
 ### Step 2: Create Tasks with Dependencies
 
@@ -79,13 +82,15 @@ TaskList로 진행 상황을 추적한다.
 
 각 phase 완료 시:
 1. `.party/findings/{artifact}.md` 파일 존재 확인 (Read)
-2. 상태 전환:
+2. **상태 전환은 대부분 훅이 자동 처리한다** — artifact 파일 생성 시 `post-pipeline-state.mjs`가 자동 전환.
+   수동 전환이 필요하면 `.party/session.json`의 `pluginRoot` 경로를 사용:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/lib/state-cli.mjs" transition {NEXT_STATE} "{reason}"
+   PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.party/session.json','utf-8')).pluginRoot)")
+   node "$PLUGIN_ROOT/lib/state-cli.mjs" transition {NEXT_STATE} "{reason}"
    ```
 3. 다음 phase 워커에게 SendMessage로 시작 지시
 
-Phase → Artifact → Next State:
+Phase → Artifact → Next State (훅 자동 전환):
 - ANALYZING → analysis.md → PLANNING
 - PLANNING → design.md → EXECUTING
 - EXECUTING → implementation.md → REVIEWING
@@ -112,23 +117,28 @@ Phase → Artifact → Next State:
 
 Host가 사용자 결정을 전달하면:
 
+먼저 pluginRoot를 읽어둔다:
+```bash
+PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.party/session.json','utf-8')).pluginRoot)")
+```
+
 - **approve**:
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/lib/state-cli.mjs" transition APPROVED "user approved"
-  node "${CLAUDE_PLUGIN_ROOT}/lib/state-cli.mjs" transition DONE "pipeline complete"
+  node "$PLUGIN_ROOT/lib/state-cli.mjs" transition APPROVED "user approved"
+  node "$PLUGIN_ROOT/lib/state-cli.mjs" transition DONE "pipeline complete"
   ```
   → Shutdown Sequence 실행 (아래 참조)
 
 - **reject**:
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/lib/state-cli.mjs" transition REJECTED "user rejected"
-  node "${CLAUDE_PLUGIN_ROOT}/lib/state-cli.mjs" transition DONE "pipeline rejected"
+  node "$PLUGIN_ROOT/lib/state-cli.mjs" transition REJECTED "user rejected"
+  node "$PLUGIN_ROOT/lib/state-cli.mjs" transition DONE "pipeline rejected"
   ```
   → Shutdown Sequence 실행 (아래 참조)
 
 - **revise "{instructions}**:
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/lib/state-cli.mjs" transition REVISION "user requested revision"
+  node "$PLUGIN_ROOT/lib/state-cli.mjs" transition REVISION "user requested revision"
   ```
   해당 워커에게 수정 지시 → 수정된 phase부터 재실행
 
@@ -168,6 +178,8 @@ Host가 사용자 결정을 전달하면:
 ## Constraints
 
 - 직접 코드를 작성하거나 수정하지 않는다 — 워커에게 위임한다
-- 상태 전환은 반드시 state-cli.mjs를 통해 한다
+- 대부분의 상태 전환은 훅이 자동 처리한다. 수동 전환(APPROVED/REJECTED/REVISION)만 state-cli.mjs 사용
+- state-cli.mjs 경로는 `.party/session.json`의 `pluginRoot` 필드에서 읽는다
+- session.json을 Write 도구로 직접 수정하지 마라 — 훅이 관리한다
 - fix_loop 3회 초과 시 자동으로 FAILED — 사용자에게 에스컬레이션
 - 워커의 findings를 변조하지 않는다 — 원본을 그대로 Host에 전달한다
