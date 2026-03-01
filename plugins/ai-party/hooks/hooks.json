@@ -63,7 +63,12 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/post-agent-verify.mjs",
             "timeout": 90
-          },
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/post-pipeline-state.mjs",
