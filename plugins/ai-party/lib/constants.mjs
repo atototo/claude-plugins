@@ -43,8 +43,8 @@ export const HOST_DIRECT_STATES = new Set([
 export const AGENT_MODEL_MAP = {
   "leader-agent": "opus",
   "claude-agent": "opus",
-  "gemini-agent": "haiku",
-  "codex-agent": "haiku",
+  "gemini-agent": "sonnet",
+  "codex-agent": "sonnet",
 };
 
 // ── Session / artifact paths ──

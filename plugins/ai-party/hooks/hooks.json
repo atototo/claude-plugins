@@ -9,6 +9,11 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-enforce.mjs",
             "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-auto-approve.mjs",
+            "timeout": 3
           }
         ]
       },

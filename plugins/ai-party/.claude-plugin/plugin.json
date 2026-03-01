@@ -1,6 +1,6 @@
 {
   "name": "ai-party",
-  "version": "0.8.15",
+  "version": "0.8.16",
   "description": "AI Party mode: Claude, Gemini, Codex agents collaborate as a team with Agent Teams orchestration",
   "author": {
     "name": "young"
