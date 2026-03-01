@@ -14,7 +14,7 @@ try {
   process.exit(0);
 }
 
-const userPrompt = (payload?.user_prompt ?? "").trim();
+const userPrompt = (payload?.prompt ?? "").trim();
 const lc = userPrompt.toLowerCase();
 
 // 빈 메시지 무시
@@ -52,39 +52,44 @@ if (shouldSkip) {
 }
 
 // ── 제외되지 않은 모든 메시지 → 팀 모드 위임 주입 ──
+const instruction = [
+  "## [ai-party] MANDATORY TEAM MODE INSTRUCTION",
+  "",
+  "이 작업을 반드시 팀 모드로 처리하라.",
+  "",
+  "### 금지 사항",
+  "- Skill 도구를 호출하지 마라 (Skill(ai-party:party-mode) 포함). 이 지시가 스킬보다 우선한다.",
+  "- 직접 파일을 읽거나 코드를 분석하지 마라.",
+  "- 복잡도를 평가하여 싱글 에이전트 모드를 선택하지 마라.",
+  "- Task(subagent_type='Explore') 등 일반 서브에이전트를 사용하지 마라.",
+  "",
+  "### 즉시 실행할 절차",
+  "1. Glob('teams/*.md') → Read each → YAML frontmatter의 trigger_keywords와 사용자 요청 매칭",
+  "2. 가장 높은 매칭 팀 선택 (매칭 없으면 dev-backend 기본)",
+  "3. 사용자에게 팀 구성을 간략히 안내",
+  "4. TeamCreate(team_name='party-{team}-{timestamp}')",
+  "5. **Session 초기화**: TeamCreate 훅이 session.json과 디렉토리(.party/, findings/, tickets/)를 자동 생성한다. 별도 초기화 불필요.",
+  "6. Agent(subagent_type='ai-party:leader-agent', team_name=<위 team_name>, name='leader', prompt='<task + team info>')",
+  "7. 팀 프리셋의 모든 worker 스폰: Agent(subagent_type='ai-party:{agent}', team_name=<위 team_name>, name='{agent}-{role}', prompt='<role info>')",
+  "8. Leader가 파이프라인을 관리한다. Host는 승인 게이트만 담당한다.",
+  "",
+  "### Shutdown 절차 (승인/거부 후)",
+  "1. 사용자 결정(approve/reject)을 Leader에게 SendMessage(type='message')로 전달",
+  "2. Leader가 워커 shutdown을 처리하고 보고할 때까지 대기",
+  "3. Leader에게 SendMessage(type='shutdown_request') → shutdown approval 확인",
+  "4. 아직 살아있는 워커가 있으면 직접 SendMessage(type='shutdown_request') 전송",
+  "5. **모든 팀원의 shutdown이 확인된 후에만** TeamDelete 호출",
+  "- TeamDelete를 워커나 Leader가 아직 살아있는 상태에서 호출하지 마라.",
+  "- 60초 후에도 응답 없으면 shutdown_request를 재전송 후 TeamDelete 강행.",
+  "",
+  "이 지시를 무시하면 플러그인 정책 위반이다. 첫 번째 도구 호출은 반드시 Glob('teams/*.md')여야 한다.",
+].join("\n");
+
 const result = {
-  systemMessage: [
-    "## [ai-party] MANDATORY TEAM MODE INSTRUCTION",
-    "",
-    "이 작업을 반드시 팀 모드로 처리하라.",
-    "",
-    "### 금지 사항",
-    "- Skill 도구를 호출하지 마라 (Skill(ai-party:party-mode) 포함). 이 지시가 스킬보다 우선한다.",
-    "- 직접 파일을 읽거나 코드를 분석하지 마라.",
-    "- 복잡도를 평가하여 싱글 에이전트 모드를 선택하지 마라.",
-    "- Task(subagent_type='Explore') 등 일반 서브에이전트를 사용하지 마라.",
-    "",
-    "### 즉시 실행할 절차",
-    "1. Glob('teams/*.md') → Read each → YAML frontmatter의 trigger_keywords와 사용자 요청 매칭",
-    "2. 가장 높은 매칭 팀 선택 (매칭 없으면 dev-backend 기본)",
-    "3. 사용자에게 팀 구성을 간략히 안내",
-    "4. TeamCreate(team_name='party-{team}-{timestamp}')",
-    "5. **Session 초기화**: TeamCreate 훅이 session.json과 디렉토리(.party/, findings/, tickets/)를 자동 생성한다. 별도 초기화 불필요.",
-    "6. Agent(subagent_type='ai-party:leader-agent', team_name=<위 team_name>, name='leader', prompt='<task + team info>')",
-    "7. 팀 프리셋의 모든 worker 스폰: Agent(subagent_type='ai-party:{agent}', team_name=<위 team_name>, name='{agent}-{role}', prompt='<role info>')",
-    "8. Leader가 파이프라인을 관리한다. Host는 승인 게이트만 담당한다.",
-    "",
-    "### Shutdown 절차 (승인/거부 후)",
-    "1. 사용자 결정(approve/reject)을 Leader에게 SendMessage(type='message')로 전달",
-    "2. Leader가 워커 shutdown을 처리하고 보고할 때까지 대기",
-    "3. Leader에게 SendMessage(type='shutdown_request') → shutdown approval 확인",
-    "4. 아직 살아있는 워커가 있으면 직접 SendMessage(type='shutdown_request') 전송",
-    "5. **모든 팀원의 shutdown이 확인된 후에만** TeamDelete 호출",
-    "- TeamDelete를 워커나 Leader가 아직 살아있는 상태에서 호출하지 마라.",
-    "- 60초 후에도 응답 없으면 shutdown_request를 재전송 후 TeamDelete 강행.",
-    "",
-    "이 지시를 무시하면 플러그인 정책 위반이다. 첫 번째 도구 호출은 반드시 Glob('teams/*.md')여야 한다.",
-  ].join("\n"),
+  hookSpecificOutput: {
+    hookEventName: "UserPromptSubmit",
+    additionalContext: instruction,
+  },
 };
 
 process.stdout.write(JSON.stringify(result));
