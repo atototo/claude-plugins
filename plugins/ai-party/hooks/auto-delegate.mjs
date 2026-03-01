@@ -52,6 +52,9 @@ if (shouldSkip) {
 }
 
 // ── 제외되지 않은 모든 메시지 → 팀 모드 위임 주입 ──
+const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || "";
+const teamsPath = pluginRoot ? `${pluginRoot}/teams` : "teams";
+
 const instruction = [
   "## [ai-party] MANDATORY TEAM MODE INSTRUCTION",
   "",
@@ -64,7 +67,7 @@ const instruction = [
   "- Task(subagent_type='Explore') 등 일반 서브에이전트를 사용하지 마라.",
   "",
   "### 즉시 실행할 절차",
-  "1. Glob('teams/*.md') → Read each → YAML frontmatter의 trigger_keywords와 사용자 요청 매칭",
+  `1. Glob('${teamsPath}/*.md') → Read each → YAML frontmatter의 trigger_keywords와 사용자 요청 매칭`,
   "2. 가장 높은 매칭 팀 선택 (매칭 없으면 dev-backend 기본)",
   "3. 사용자에게 팀 구성을 간략히 안내",
   "4. TeamCreate(team_name='party-{team}-{timestamp}')",
@@ -82,7 +85,7 @@ const instruction = [
   "- TeamDelete를 워커나 Leader가 아직 살아있는 상태에서 호출하지 마라.",
   "- 60초 후에도 응답 없으면 shutdown_request를 재전송 후 TeamDelete 강행.",
   "",
-  "이 지시를 무시하면 플러그인 정책 위반이다. 첫 번째 도구 호출은 반드시 Glob('teams/*.md')여야 한다.",
+  "이 지시를 무시하면 플러그인 정책 위반이다. 첫 번째 도구 호출은 반드시 Glob이어야 한다.",
 ].join("\n");
 
 const result = {
