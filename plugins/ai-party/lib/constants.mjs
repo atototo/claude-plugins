@@ -23,7 +23,7 @@ export const BLOCKED_TOOLS = new Set([
 
 // ── Always allowed (orchestration tools) ──
 export const ALLOWED_TOOLS = new Set([
-  "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet",
+  "Task", "Agent", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet",
   "TeamCreate", "TeamDelete", "SendMessage", "AskUserQuestion",
   "Skill", "TaskOutput", "TaskStop",
 ]);
@@ -43,8 +43,8 @@ export const HOST_DIRECT_STATES = new Set([
 export const AGENT_MODEL_MAP = {
   "leader-agent": "opus",
   "claude-agent": "opus",
-  "gemini-agent": "sonnet",
-  "codex-agent": "sonnet",
+  "gemini-agent": "haiku",
+  "codex-agent": "haiku",
 };
 
 // ── Session / artifact paths ──

@@ -8,7 +8,7 @@
 #   @ 참조:       gemini -p "@src/file.py 분석해줘" --output-format json -y
 #   디렉토리:     --include-directories <dir>
 #   JSON 출력:    { "response": "...", "stats": { "models": {...}, "tools": {...} } }
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=common.sh

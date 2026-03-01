@@ -5,7 +5,7 @@
 //
 // fail-open: 오류 시 exit(0) — TeamCreate 자체를 막지 않는다.
 
-import { readFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createSession, writeSession, readSession, isSessionValid, isSessionStale } from "../lib/session.mjs";
@@ -51,6 +51,7 @@ if (!teamName.startsWith("party-")) {
 // 터미널 phase 세션은 재사용하지 않고 새로 생성한다.
 const TERMINAL_PHASES = new Set([
   "COMPLETED", "DONE", "ROLLED_BACK", "FAILED", "REJECTED", "APPROVED",
+  "AWAITING_APPROVAL",
 ]);
 
 const cwd = process.cwd();
@@ -168,11 +169,20 @@ if (members.length === 0) {
   members = [{ name: "leader", agent: "leader-agent", role: "orchestrator" }];
 }
 
-// ── 디렉토리 생성 ──
+// ── 디렉토리 생성 + 이전 아티팩트 정리 ──
 try {
   mkdirSync(join(cwd, PARTY_DIR), { recursive: true });
   mkdirSync(join(cwd, FINDINGS_DIR), { recursive: true });
   mkdirSync(join(cwd, TICKETS_DIR), { recursive: true });
+  // BugC: 이전 세션 아티팩트 제거 → phantom transition 방지
+  for (const dir of [FINDINGS_DIR, TICKETS_DIR]) {
+    try {
+      const files = readdirSync(join(cwd, dir));
+      for (const f of files) {
+        rmSync(join(cwd, dir, f), { force: true });
+      }
+    } catch { /* ignore */ }
+  }
 } catch {
   // fail-open: 디렉토리 생성 실패해도 계속
 }

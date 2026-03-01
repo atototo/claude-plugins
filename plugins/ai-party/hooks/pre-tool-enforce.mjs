@@ -69,7 +69,7 @@ if (hasLeader) {
   // 4a. allSpawned 체크: 전원 스폰 전까지는 Agent/TeamCreate만 허용
   const allSpawned = session.members.every((m) => m.spawned);
   if (!allSpawned) {
-    const SPAWN_ALLOWED = new Set(["Agent", "TeamCreate", "AskUserQuestion"]);
+    const SPAWN_ALLOWED = new Set(["Agent", "TeamCreate", "AskUserQuestion", "Read", "Glob", "Grep"]);
     if (!SPAWN_ALLOWED.has(toolName)) {
       const unspawned = session.members.filter((m) => !m.spawned);
       const result = {

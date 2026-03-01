@@ -34,7 +34,7 @@ REQUIRED_FILES=(
   "lib/state-machine.mjs"
   "lib/state-cli.mjs"
   "hooks/pre-tool-enforce.mjs"
-  "hooks/pre-tool-model-inject.mjs"
+  "hooks/pre-tool-agent-inject.mjs"
   "hooks/post-pipeline-state.mjs"
 )
 for f in "${REQUIRED_FILES[@]}"; do
@@ -98,20 +98,20 @@ else
   fail "pre-tool-enforce: no session → expected exit 0"
 fi
 
-# pre-tool-model-inject: inject model for claude-agent
-INJECT_OUT=$(echo '{"tool_name":"Task","tool_input":{"subagent_type":"ai-party:claude-agent"}}' | node "$PLUGIN_DIR/hooks/pre-tool-model-inject.mjs" 2>/dev/null)
+# pre-tool-agent-inject: inject model + CLI hint for claude-agent
+INJECT_OUT=$(echo '{"tool_name":"Agent","tool_input":{"subagent_type":"ai-party:claude-agent"}}' | node "$PLUGIN_DIR/hooks/pre-tool-agent-inject.mjs" 2>/dev/null)
 if echo "$INJECT_OUT" | jq -e '.updatedInput.model == "opus"' >/dev/null 2>&1; then
-  ok "pre-tool-model-inject: claude-agent → opus"
+  ok "pre-tool-agent-inject: claude-agent → opus"
 else
-  fail "pre-tool-model-inject: expected model=opus"
+  fail "pre-tool-agent-inject: expected model=opus"
 fi
 
-# pre-tool-model-inject: non-ai-party agent → no output
-NON_AI=$(echo '{"tool_name":"Task","tool_input":{"subagent_type":"general-purpose"}}' | node "$PLUGIN_DIR/hooks/pre-tool-model-inject.mjs" 2>/dev/null; echo "EXIT:$?")
+# pre-tool-agent-inject: non-ai-party agent → no output
+NON_AI=$(echo '{"tool_name":"Agent","tool_input":{"subagent_type":"general-purpose"}}' | node "$PLUGIN_DIR/hooks/pre-tool-agent-inject.mjs" 2>/dev/null; echo "EXIT:$?")
 if echo "$NON_AI" | grep -q "EXIT:0"; then
-  ok "pre-tool-model-inject: non-ai-party → pass-through"
+  ok "pre-tool-agent-inject: non-ai-party → pass-through"
 else
-  fail "pre-tool-model-inject: non-ai-party should exit 0"
+  fail "pre-tool-agent-inject: non-ai-party should exit 0"
 fi
 
 rm -rf "$TMPDIR_TEST"
