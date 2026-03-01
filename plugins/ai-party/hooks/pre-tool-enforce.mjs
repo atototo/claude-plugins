@@ -61,13 +61,26 @@ if (!isPipelineActive(session)) {
   process.exit(0);
 }
 
-// 4. Leader architecture: leader-agent가 멤버에 있으면 enforcement skip
-// Leader가 파이프라인을 관리하고, Worker들은 도구 접근이 필수이므로
-// 세션 전체에 대한 blanket deny는 적절하지 않다.
+// 4. Leader architecture: leader-agent가 멤버에 있는 경우
 const hasLeader = session.members?.some(
   (m) => m.agent === "leader-agent" || m.role === "leader"
 );
 if (hasLeader) {
+  // 4a. allSpawned 체크: 전원 스폰 전까지는 Agent/TeamCreate만 허용
+  const allSpawned = session.members.every((m) => m.spawned);
+  if (!allSpawned) {
+    const SPAWN_ALLOWED = new Set(["Agent", "TeamCreate", "AskUserQuestion"]);
+    if (!SPAWN_ALLOWED.has(toolName)) {
+      const unspawned = session.members.filter((m) => !m.spawned);
+      const result = {
+        permissionDecision: "deny",
+        message: `[ai-party] Spawn phase: only Agent calls allowed until all members spawned. Unspawned: ${unspawned.map(m => m.agent).join(", ")}. Call Agent to spawn them now.`,
+      };
+      process.stdout.write(JSON.stringify(result));
+      process.exit(2);
+    }
+  }
+  // 4b. allSpawned 완료 후: Leader architecture이므로 enforcement skip
   process.exit(0);
 }
 
