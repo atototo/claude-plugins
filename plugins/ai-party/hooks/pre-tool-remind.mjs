@@ -23,7 +23,7 @@ try {
 const toolName = payload?.tool_name ?? "";
 
 // Only inject on Task tool calls (agent spawn/management)
-if (toolName !== "Task") {
+if (toolName !== "Agent") {
   process.exit(0);
 }
 

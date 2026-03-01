@@ -18,7 +18,7 @@ const toolName = payload?.tool_name ?? "";
 const toolInput = payload?.tool_input ?? {};
 
 // Task 도구가 아니면 무시
-if (toolName !== "Task") {
+if (toolName !== "Agent") {
   process.exit(0);
 }
 
