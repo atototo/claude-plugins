@@ -56,13 +56,12 @@ if (updatedInput.mode !== "bypassPermissions") {
   changed = true;
 }
 
-// ── 2. Model 주입 (사용자 미지정 시) ──
-if (!toolInput.model) {
-  const model = AGENT_MODEL_MAP[agentKey];
-  if (model) {
-    updatedInput.model = model;
-    changed = true;
-  }
+// ── 2. Model 강제 주입 (AGENT_MODEL_MAP 우선) ──
+// Host LLM이 model을 명시하든 안 하든 항상 AGENT_MODEL_MAP 값으로 강제
+const model = AGENT_MODEL_MAP[agentKey];
+if (model) {
+  updatedInput.model = model;
+  changed = true;
 }
 
 // ── 3. CLI hint 주입 (found=false 우회) ──
