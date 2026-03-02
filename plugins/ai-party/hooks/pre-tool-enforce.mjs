@@ -18,11 +18,19 @@ import {
   BLOCKED_TOOLS,
   HOST_DIRECT_STATES,
   SESSION_FILE,
+  STATES,
   EVENT_TYPES,
 } from "../lib/constants.mjs";
-import { readSession, isPipelineActive, isSessionValid, isSessionStale } from "../lib/session.mjs";
+import {
+  readSession,
+  writeSession,
+  isPipelineActive,
+  isSessionValid,
+  isSessionStale,
+} from "../lib/session.mjs";
 import { emit } from "../lib/events.mjs";
 import { classifyToolRisk, resolveApprovalMode, APPROVAL_MODES } from "../lib/approval.mjs";
+import { toolFingerprint, upsertPendingRequest } from "../lib/approval-bridge.mjs";
 
 function resolveRole(name) {
   const known = ["security-auditor", "researcher", "architect", "reviewer", "builder", "analyst", "deployer"];
@@ -138,6 +146,7 @@ try {
 }
 
 const toolName = payload?.tool_name ?? "";
+const toolInput = payload?.tool_input ?? {};
 
 // 0. session.json 직접 Write 차단 (훅이 관리하므로 파이프라인 상태 무관하게 항상 보호)
 if (toolName === "Write") {
@@ -166,24 +175,114 @@ if (!isPipelineActive(session)) {
   process.exit(0);
 }
 
+function consumeApprovalGrant(activeSession, name, input) {
+  const grants = Array.isArray(activeSession?.approval_grants) ? activeSession.approval_grants : [];
+  if (grants.length === 0) return false;
+  const now = Date.now();
+  const fp = toolFingerprint(name, input);
+  let matched = false;
+  const next = [];
+  for (const grant of grants) {
+    const expiresAt = new Date(grant?.expires_at || 0).getTime();
+    const validTime = Number.isFinite(expiresAt) && expiresAt > now;
+    const usesLeft = Math.max(0, Number(grant?.uses_left || 0));
+    if (!matched && validTime && usesLeft > 0 && grant?.fingerprint === fp) {
+      matched = true;
+      if (usesLeft - 1 > 0) {
+        next.push({ ...grant, uses_left: usesLeft - 1 });
+      }
+      continue;
+    }
+    if (validTime && usesLeft > 0) {
+      next.push(grant);
+    }
+  }
+  if (!matched) return false;
+  activeSession.approval_grants = next;
+  if (activeSession.phase === STATES.PENDING_APPROVAL && activeSession.approval_context?.previous_phase) {
+    activeSession.phase = activeSession.approval_context.previous_phase;
+    activeSession.phase_history = Array.isArray(activeSession.phase_history) ? activeSession.phase_history : [];
+    activeSession.phase_history.push({
+      phase: activeSession.phase,
+      entered_at: new Date().toISOString(),
+      reason: "approval grant consumed",
+    });
+    activeSession.approval_context = null;
+  }
+  try {
+    writeSession(activeSession);
+  } catch {
+    // fail-open for grant bookkeeping
+  }
+  return true;
+}
+
 // 4. risk-based approval gate
-const riskLevel = classifyToolRisk(toolName, payload?.tool_input ?? {});
+const riskLevel = classifyToolRisk(toolName, toolInput);
 const approvalMode = resolveApprovalMode(session);
+if (
+  approvalMode === APPROVAL_MODES.PLATFORM &&
+  (riskLevel === "MEDIUM" || riskLevel === "HIGH") &&
+  consumeApprovalGrant(session, toolName, toolInput)
+) {
+  process.exit(0);
+}
 if (
   approvalMode === APPROVAL_MODES.PLATFORM &&
   (riskLevel === "MEDIUM" || riskLevel === "HIGH")
 ) {
-  try {
-    emit(EVENT_TYPES.APPROVAL_REQUESTED, {
-      source: "pre-tool-enforce",
-      approval_mode: approvalMode,
-      risk_level: riskLevel,
-      phase: session?.phase ?? null,
-      team: session?.team ?? null,
-      tool_name: toolName,
-      tool_input: payload?.tool_input ?? {},
-      summary: `Platform approval required: ${toolName} (${riskLevel})`,
+  const previousPhase = session?.phase === STATES.PENDING_APPROVAL
+    ? (session?.approval_context?.previous_phase || null)
+    : (session?.phase || null);
+  const pending = upsertPendingRequest({
+    session,
+    toolName,
+    toolInput,
+    riskLevel,
+    approvalMode,
+    previousPhase,
+  });
+  const requestId = pending.request.request_id;
+  if (session.phase !== STATES.PENDING_APPROVAL) {
+    session.phase_history = Array.isArray(session.phase_history) ? session.phase_history : [];
+    session.phase_history.push({
+      phase: STATES.PENDING_APPROVAL,
+      entered_at: new Date().toISOString(),
+      reason: `approval requested: ${toolName} (${riskLevel})`,
     });
+    session.phase = STATES.PENDING_APPROVAL;
+  }
+  session.approval_context = {
+    pending_request_id: requestId,
+    previous_phase: previousPhase,
+    requested_tool: toolName,
+    requested_at: pending.request.requested_at,
+  };
+  try {
+    writeSession(session);
+  } catch {
+    // fail-open for session write
+  }
+
+  try {
+    if (pending.created) {
+      emit(EVENT_TYPES.APPROVAL_REQUESTED, {
+        source: "pre-tool-enforce",
+        approval_mode: approvalMode,
+        risk_level: riskLevel,
+        phase: previousPhase,
+        team: session?.team ?? null,
+        tool_name: toolName,
+        tool_input: toolInput,
+        request_id: requestId,
+        summary: `Platform approval required: ${toolName} (${riskLevel})`,
+      });
+      emit(EVENT_TYPES.PHASE_CHANGED, {
+        from: previousPhase,
+        to: STATES.PENDING_APPROVAL,
+        reason: `approval requested: ${toolName} (${riskLevel})`,
+      });
+    }
   } catch {
     // fail-open for event logging
   }
@@ -191,7 +290,13 @@ if (
   const result = {
     decision: "block",
     permissionDecision: "deny",
-    message: `[ai-party] ${toolName} is ${riskLevel} risk. approval_mode=platform requires external approval (approval_requested emitted).`,
+    message: [
+      `[ai-party] ${toolName} is ${riskLevel} risk. Entering ${STATES.PENDING_APPROVAL}.`,
+      pending.coolDownActive
+        ? `[ai-party] Approval request ${requestId} is already pending. Retry suppressed (cooldown).`
+        : `[ai-party] Approval request created: ${requestId}.`,
+      "[ai-party] User decision required: approve <request_id> | reject <request_id> <reason> | revise <request_id> <comment>.",
+    ].join(" "),
   };
   process.stdout.write(JSON.stringify(result));
   process.exit(2);

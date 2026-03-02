@@ -363,6 +363,16 @@ reviewer
 - [x] `approval_mode=platform` 기본 동작 + `approval_mode=cli` 디버그 모드 분리 검증
 - [x] 스킬/도구 위임 허용 상태에서 phase/contract/approval 강제 정책 회귀 없음 검증
 
+### Phase 3.5-H: 승인 브릿지 + 재개 제어 (HIGH Priority)
+
+- [ ] `approval_requested`를 사용자 승인 UI/입력으로 브릿지하는 훅/러너 경로 구현
+- [ ] 위험 액션 차단 시 즉시 `PENDING_APPROVAL` 전이 (세션/이벤트 동기화)
+- [ ] 승인 대기 중 동일 위험 액션 재시도 루프 차단 (dedupe + cooldown)
+- [ ] 승인 결정(`approve/reject/revise`) 이벤트를 session/ticket/events에 표준 구조로 기록
+- [ ] `approve` 시 중단된 액션을 1회 재개, `reject` 시 대체 경로(LOW 도구 또는 수정 요청)로 분기
+- [ ] 브릿지 미연결/실패 시 fail-safe: 파이프라인 중단 + 사용자에게 명시적 안내
+- [ ] 팀 공통 적용 검증 (review 전용이 아니라 bugfix/devops/dev-backend/dev-frontend/security/feature/fullstack/research/migration 포함)
+
 ### Phase 3.5-E: 팀 계약 회귀 방지 (v0.9.0-rc.4)
 
 - [x] leader → worker SendMessage가 teams/*.md Instructions/output path를 그대로 포함하는지 검증
@@ -374,8 +384,8 @@ reviewer
 
 - [ ] 기존 팀 4개 정상 동작 확인 (하위 호환)
 - [ ] 신규 팀 6개 테스트
-- [ ] permission_prompt 0건 확인
-- [ ] model injection 회귀 없음 확인
+- [x] permission_prompt 0건 확인 (debug: `dac10e3c-8777-4ae9-bee4-53269939b0a3.txt`)
+- [x] model injection 회귀 없음 확인 (debug: `dac10e3c-8777-4ae9-bee4-53269939b0a3.txt`)
 - [ ] 도구 위임 (Bash 래퍼 경유 + 필요 시 multi-delegate 스킬) 테스트
 
 ### Phase 3.5-F: 성능/토큰 최적화 (v0.9.0-rc.5)
@@ -386,6 +396,7 @@ reviewer
 - [ ] 다중 세션(2~3개 병렬)에서 지연/에러율 회귀 없음 확인
 - [ ] `context.md` 완료 대기 없이 phase 멤버 배정/분석이 병렬 시작되는지 검증
 - [ ] leader 선행 전수 스캔 제거 후(라우팅 인덱스만 작성) 리뷰/개발/devops 토큰 사용량 비교
+- [ ] 승인 대기 구간 체류 시간(approval wait time) 및 재시도 횟수(retry count) KPI 추가
 
 ---
 
@@ -406,6 +417,7 @@ reviewer
 | 스폰 정책 | phase-aware lazy spawn 동작, 재스폰 없음 | spawn 로그 + session.members.spawned 검증 |
 | context 비차단 | `context.md` 작성 중에도 phase 멤버 배정/분석 시작 가능 | debug 로그에서 배정 시점/artifact 시점 비교 |
 | 승인 정책 | 위험도별 승인 분기(LOW 자동, MEDIUM/HIGH 대기) | pre-tool-enforce 로그 + approval_requested 이벤트 검증 |
+| 승인 브릿지 | `approval_requested`가 사용자 승인 채널로 연결되어 `approve/reject`가 실제 실행 흐름에 반영 | 승인 요청 생성→대기→결정→재개/중단 E2E 로그 검증 |
 | 팀 정리 | pipeline 종료 시 TeamDelete가 platform 모드에서 불필요 차단되지 않음 | TeamDelete hook 로그 + events.ndjson 확인 |
 | 중간 승인 흐름 | `PENDING_APPROVAL`에서 승인/거절 코멘트 반영 | API/대시보드 연동 E2E 검증 |
 | 토큰 효율 | eager spawn 대비 총 토큰 감소 | debug usage 비교 |

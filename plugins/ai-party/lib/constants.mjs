@@ -8,6 +8,7 @@ export const STATES = {
   PLANNING: "PLANNING",
   EXECUTING: "EXECUTING",
   REVIEWING: "REVIEWING",
+  PENDING_APPROVAL: "PENDING_APPROVAL",
   AWAITING_APPROVAL: "AWAITING_APPROVAL",
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
@@ -32,6 +33,7 @@ export const ALLOWED_TOOLS = new Set([
 // ── States where Host can use tools directly ──
 export const HOST_DIRECT_STATES = new Set([
   STATES.IDLE,
+  STATES.PENDING_APPROVAL,
   STATES.AWAITING_APPROVAL,
   STATES.APPROVED,
   STATES.REJECTED,
@@ -66,6 +68,7 @@ export const SESSION_FILE = ".party/session.json";
 export const FINDINGS_DIR = ".party/findings";
 export const CONTEXT_ARTIFACT = ".party/findings/context.md";
 export const TICKETS_DIR = ".party/tickets";
+export const APPROVALS_DIR = ".party/approvals";
 export const EVENTS_FILE = ".party/events.ndjson";
 
 // ── Fix loop limit ──

@@ -39,6 +39,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-approval-bridge.mjs",
+            "timeout": 5
+          },
+          {
+            "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/auto-delegate.mjs",
             "timeout": 5
           }

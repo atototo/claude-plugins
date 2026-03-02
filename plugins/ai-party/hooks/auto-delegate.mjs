@@ -41,6 +41,9 @@ const SKIP_PATTERNS = [
   // 대화 이어가기 (짧은 후속 지시)
   /^(계속|continue|go on|keep going|ㄱㄱ|고고)\s*[.!]?$/,
 
+  // 승인 브릿지 결정 커맨드 (팀 모드 자동 주입 금지)
+  /^(approve|reject|revise|승인|거절|수정)\b/i,
+
   // 확인/상태 질문
   /^(됐어|done|완료|끝|finished)\s*[?]?$/,
   /^(어떻게 됐어|상태|status|진행|progress)\s*[?]?$/,
