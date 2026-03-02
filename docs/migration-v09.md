@@ -288,7 +288,8 @@ reviewer
 
 - 기존 eager spawn(leader + worker 전원 선스폰)을 폐기하고, 현재 phase 멤버만 스폰한다.
 - 스폰 정책:
-  - TeamCreate 직후: `leader` + `starting_phase_after_context`에 해당하는 멤버만 스폰
+  - TeamCreate 직후: `leader`만 스폰 (CONTEXTUALIZING의 current phase)
+  - CONTEXTUALIZING 중: 현재 phase 멤버 기준으로만 hard-required 스폰을 적용
   - phase 전환 감지 후: 다음 phase 멤버를 on-demand 스폰
   - 이미 스폰된 멤버는 재스폰 금지 (idempotent)
 - 목적:
@@ -299,14 +300,25 @@ reviewer
 - 구현 대상:
   - `hooks/auto-delegate.mjs`: "전원 스폰" 지시를 "현재 phase 스폰"으로 변경
   - `hooks/post-tool-verify.mjs` 또는 신규 훅: phase 전환 시 next-phase 멤버 스폰 트리거
-  - `hooks/pre-tool-enforce.mjs`: unspawned 멤버로의 SendMessage 차단 규칙 추가
+  - `hooks/pre-tool-enforce.mjs`: unspawned recipient로의 SendMessage 차단 + current-phase 기준 spawn gate
 - 적용 상태:
   - [x] `hooks/auto-delegate.mjs` lazy spawn 지시 반영
-  - [x] `hooks/pre-tool-enforce.mjs` initial required spawn + unspawned recipient 차단 반영
+  - [x] `hooks/pre-tool-enforce.mjs` current-phase required spawn + unspawned recipient 차단 반영
   - [x] `hooks/post-team-init.mjs` 멤버별 `phases` 파싱/세션 저장 반영
   - [x] `hooks/post-pipeline-state.mjs` phase 전환 시 lazy-spawn required 멤버 안내 반영
-  - [ ] `hooks/post-tool-verify.mjs`는 "전원 스폰 게이트" 제거 + phase 기반 진행 안내로 전환됨 (부분 완료)
+  - [x] `hooks/post-tool-verify.mjs` 안내 문구를 next-phase on-demand 정책으로 정렬
   - [ ] 완전 자동 next-phase 스폰(호스트 Agent 호출 대행)은 미구현 (현재는 안내+강제 조합)
+
+### Step 8-A: Orchestration Deadlock Fix (v0.9.0-rc.10)
+
+- 목표: leader가 보고/배분 오케스트레이션을 수행할 수 있도록 초기 SendMessage 데드락 제거
+- 조치:
+  - 초기 hard-required spawn 계산에서 next-phase 멤버를 제외하고 current-phase 멤버만 강제
+  - CONTEXTUALIZING에서는 leader만 required로 간주
+  - next-phase 멤버 선스폰은 권고가 아닌 on-demand 정책으로 고정
+- 기대 효과:
+  - leader/worker idle 루프 감소
+  - "context 비차단" 원칙과 runtime enforcement 정합성 확보
 
 ### Step 9: Risk-based Approval Bridge (v0.9.0-rc.6 플랫폼 정합성)
 
@@ -398,6 +410,13 @@ reviewer
 - [ ] leader 선행 전수 스캔 제거 후(라우팅 인덱스만 작성) 리뷰/개발/devops 토큰 사용량 비교
 - [ ] 승인 대기 구간 체류 시간(approval wait time) 및 재시도 횟수(retry count) KPI 추가
 
+### Phase 3.5-I: 정책 정합성 핫픽스 (v0.9.0-rc.10)
+
+- [x] 초기 lazy-spawn hard gate를 current-phase 기준으로 축소 (next-phase 선스폰 미강제)
+- [x] auto-delegate 초기 스폰 지시를 `leader only + current phase on-demand`로 수정
+- [x] post-team-init 안내 문구를 on-demand 정책으로 수정
+- [x] post-tool-verify 안내 문구를 "next-phase on-demand"로 수정
+
 ---
 
 ## 5. 검증 기준
@@ -430,7 +449,7 @@ reviewer
 | validation failed | 0건 | 0건 유지 |
 | model injection | 0건 | 0건 유지 |
 | 에이전트 스폰 성공률 | ~90% | 99%+ |
-| 초기 스폰 수 | leader+전원 worker | leader+현재 phase worker |
+| 초기 스폰 수 | leader+전원 worker | leader only (초기) + current phase on-demand |
 | 첫 응답 지연(TTFM) | baseline | 30%+ 단축 |
 | 총 토큰 사용량 | baseline | 20%+ 절감 |
 

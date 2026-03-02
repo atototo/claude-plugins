@@ -63,11 +63,9 @@ function memberActiveInPhase(member, phase) {
   return phases.includes(String(phase).toUpperCase());
 }
 
-function requiredInitialMembers(session) {
-  const next = String(session?.starting_phase_after_context || "ANALYZING").toUpperCase();
-  return (session?.members || []).filter((m) =>
-    m.name === "leader" || m.agent === "leader" || m.agent === "leader-agent" || memberActiveInPhase(m, next)
-  );
+function requiredMembersForPhase(session, phase) {
+  const target = String(phase || "").toUpperCase();
+  return (session?.members || []).filter((m) => memberActiveInPhase(m, target));
 }
 
 function parseTeamContract(session) {
@@ -314,9 +312,9 @@ const hasLeader = session.members?.some(
   (m) => m.agent === "leader-agent" || m.agent === "leader" || m.name === "leader"
 );
 if (hasLeader) {
-  // 6a. initial required spawn 체크:
-  // leader + starting_phase_after_context 멤버가 스폰될 때까지 허용 도구만 사용
-  const initialRequired = requiredInitialMembers(session);
+  // 6a. required spawn 체크:
+  // 현재 phase 멤버가 스폰될 때까지 허용 도구만 사용 (next-phase는 on-demand)
+  const initialRequired = requiredMembersForPhase(session, session.phase);
   const missingInitial = initialRequired.filter((m) => !m.spawned);
   if (missingInitial.length > 0) {
     const SPAWN_ALLOWED = new Set(["Agent", "TeamCreate", "AskUserQuestion", "Read", "Glob", "Grep"]);

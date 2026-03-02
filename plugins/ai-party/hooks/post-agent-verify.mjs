@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // post-agent-verify.mjs — ai-party 에이전트 결과물 검수 강제 훅
-// PostToolUse(Task) 이벤트에서 발동한다.
+// PostToolUse(Agent) 이벤트에서 발동한다.
 // ai-party 에이전트가 아닌 경우 즉시 exit 0으로 무시한다.
 
 import { execSync } from "node:child_process";

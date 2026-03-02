@@ -2,11 +2,11 @@
 // post-tool-verify.mjs — L2: PostToolUse verification hook
 //
 // Responsibilities:
-// 1. Team spawn verification: track Agent(Task) calls → mark members as spawned
+// 1. Team spawn verification: track Agent calls → mark members as spawned
 //    → lazy-spawn progress messages by current phase, emit team_spawn_verified when all eventually spawned
 // 2. Ticket completion check: after agent completes, check if phase tickets are done
 //
-// Trigger: PostToolUse(Task) — runs after agent spawn/completion
+// Trigger: PostToolUse(Agent) — runs after agent spawn/completion
 // fail-open: errors → exit 0
 
 import { readFileSync } from "node:fs";
@@ -101,7 +101,7 @@ if (session.members && Array.isArray(session.members)) {
       );
     } else if (session.phase === STATES.CONTEXTUALIZING && nextPhaseMembers.length > 0) {
       messages.push(
-        `[ai-party] Spawned: ${agentType}. Context phase ready. Pre-spawn recommended for next phase (${session.starting_phase_after_context}): ${nextPhaseMembers.map((m) => m.name).join(", ")}`
+        `[ai-party] Spawned: ${agentType}. Context phase active. Next-phase members (${session.starting_phase_after_context}) stay on-demand: ${nextPhaseMembers.map((m) => m.name).join(", ")}`
       );
     } else {
       messages.push(
