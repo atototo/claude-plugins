@@ -104,8 +104,12 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
   - teammate mode 기본값 `in-process` (tmux/split-pane는 로컬 디버깅 전용)
   - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 환경 표준화
   - phase-aware lazy spawn (leader + 현재 phase 멤버만 스폰, 다음 phase는 on-demand)
+  - CONTEXTUALIZING는 경량 라우팅 단계로 제한 (리더 전수 분석 금지, 워커가 상세 분석 담당)
+  - `context.md`는 필수 상세 리포트가 아니라 라우팅 인덱스(범위/핵심 파일/오픈 질문)로 운용
+  - `context.md` 완성 대기로 전체 워커를 블로킹하지 않음 (현재 phase 멤버는 즉시 배정 가능)
   - 승인 정책 모드: `approval_mode=platform` 기본, `cli`는 로컬 디버그 전용
   - risk-based gate: LOW 자동, MEDIUM/HIGH는 플랫폼 승인 후 진행
+  - TeamDelete는 파이프라인 정리용 LOW 위험군으로 분류 (종료 정리 차단 회귀 방지)
   - 스킬/도구 위임: 기본 허용 (단, phase/contract/approval 정책 위반 시 차단)
 
 ### Step 17-A: Mode Resolver (single | party-light | party-full)
@@ -115,6 +119,7 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
   - `party-light`: 중간 복잡도. leader + 최소 워커 조합
   - `party-full`: 고위험/고복잡도. 전체 파이프라인 + 중간 승인 게이트
 - [ ] 결정 기준 정의 (예: risk_level, blast radius, requested scope, SLA)
+  - CONTEXTUALIZING 비용(예상 스캔 범위/파일 수/기존 context 재사용 가능성)을 입력 신호에 포함
 - [ ] 단일 모드도 에이전트 기반으로 실행(작업 큐를 통해 동시 다중 티켓 처리)
 - [ ] 모드 결정 결과를 `ticket_events`에 기록하고 대시보드에 노출
 

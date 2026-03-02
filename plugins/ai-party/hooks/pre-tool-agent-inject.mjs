@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AGENT_MODEL_MAP } from "../lib/constants.mjs";
+import { readSession } from "../lib/session.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PLUGIN_ROOT = join(__dirname, "..");
@@ -48,6 +49,45 @@ const agentKey = subagentType.replace("ai-party:", "");
 const updatedInput = { ...toolInput };
 let changed = false;
 
+function resolveRoleFromName(name = "") {
+  const value = String(name || "");
+  const known = [
+    "security-auditor",
+    "researcher",
+    "architect",
+    "reviewer",
+    "builder",
+    "analyst",
+    "deployer",
+    "leader",
+  ];
+  for (const role of known) {
+    if (value === role || value.startsWith(`${role}-`)) return role;
+  }
+  return "";
+}
+
+function resolveRoleFromSessionMember(name = "") {
+  const session = readSession();
+  if (!session || !Array.isArray(session.members)) return "";
+  const member = session.members.find((m) => String(m?.name || "") === String(name || ""));
+  if (!member) return "";
+  return resolveRoleFromName(member.role || member.agent || member.name || "");
+}
+
+// Agent 이름/세션 멤버 기준으로 역할 보정 (예: reviewer-*가 analyst로 스폰되는 회귀 방지)
+const requestedName = String(updatedInput?.name || "");
+const roleFromName = resolveRoleFromName(requestedName);
+const roleFromSession = resolveRoleFromSessionMember(requestedName);
+const correctedRole = roleFromSession || roleFromName || agentKey;
+
+if (correctedRole && correctedRole !== agentKey) {
+  updatedInput.subagent_type = `ai-party:${correctedRole}`;
+  changed = true;
+}
+
+const effectiveAgentKey = (updatedInput.subagent_type || subagentType).replace("ai-party:", "");
+
 // ── 1. Mode 강제 주입 (bypassPermissions) ──
 // dontAsk 모드는 Bash/Write 권한 프롬프트를 차단하지 못함.
 // bypassPermissions로 강제 주입하여 에이전트 내부 도구 호출 시 권한 프롬프트 방지.
@@ -58,7 +98,7 @@ if (updatedInput.mode !== "bypassPermissions") {
 
 // ── 2. Model 강제 주입 (AGENT_MODEL_MAP 우선) ──
 // Host LLM이 model을 명시하든 안 하든 항상 AGENT_MODEL_MAP 값으로 강제
-const model = AGENT_MODEL_MAP[agentKey];
+const model = AGENT_MODEL_MAP[effectiveAgentKey];
 if (model) {
   updatedInput.model = model;
   changed = true;
@@ -105,7 +145,7 @@ const CLI_HINTS = {
 };
 
 // CLI hint는 deprecated 에이전트에만 적용 (v0.9.0 역할 에이전트는 네이티브 도구 사용)
-const hint = CLI_HINTS[agentKey];
+const hint = CLI_HINTS[effectiveAgentKey];
 if (hint) {
   updatedInput.prompt = hint + (updatedInput.prompt || "");
   changed = true;

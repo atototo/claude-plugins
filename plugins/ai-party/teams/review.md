@@ -20,15 +20,15 @@ trigger_keywords:
 
 ### reviewer-security
 - **Phase**: reviewing
-- **Instructions**: 보안 관점에서 코드를 리뷰하라. OWASP Top 10, 인증/인가, 입력 검증, 시크릿 노출, SQL injection, XSS 등을 점검하라. 결과를 `.party/findings/review-security.md`에 저장하라.
+- **Instructions**: 보안 관점에서 코드를 리뷰하라. 먼저 `.party/findings/context.md`의 파일 목록/핵심 경로를 기준으로 범위를 한정하고, 필요한 파일만 추가 탐색하라. OWASP Top 10, 인증/인가, 입력 검증, 시크릿 노출, SQL injection, XSS 등을 점검하라. 결과를 `.party/findings/review-security.md`에 저장하라.
 
 ### reviewer-performance
 - **Phase**: reviewing
-- **Instructions**: 성능 관점에서 코드를 리뷰하라. N+1 쿼리, 불필요한 연산, 메모리 누수, 캐싱 기회, 비동기 처리를 점검하라. 결과를 `.party/findings/review-performance.md`에 저장하라.
+- **Instructions**: 성능 관점에서 코드를 리뷰하라. 먼저 `.party/findings/context.md`의 파일 목록/핵심 경로를 기준으로 범위를 한정하고, 필요한 파일만 추가 탐색하라. N+1 쿼리, 불필요한 연산, 메모리 누수, 캐싱 기회, 비동기 처리를 점검하라. 결과를 `.party/findings/review-performance.md`에 저장하라.
 
 ### reviewer-architecture
 - **Phase**: reviewing
-- **Instructions**: 아키텍처 관점에서 코드를 리뷰하라. SOLID 원칙, 의존성 방향, 레이어 분리, 패턴 일관성, 확장성을 점검하라. 결과를 `.party/findings/review-architecture.md`에 저장하라.
+- **Instructions**: 아키텍처 관점에서 코드를 리뷰하라. 먼저 `.party/findings/context.md`의 파일 목록/핵심 경로를 기준으로 범위를 한정하고, 필요한 파일만 추가 탐색하라. SOLID 원칙, 의존성 방향, 레이어 분리, 패턴 일관성, 확장성을 점검하라. 결과를 `.party/findings/review-architecture.md`에 저장하라.
 
 ## Workflow
 

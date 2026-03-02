@@ -5,15 +5,15 @@ export const APPROVAL_MODES = {
   CLI: "cli",
 };
 
-// LOW: read-only / orchestration, MEDIUM: source mutation, HIGH: shell/team-destructive
+// LOW: read-only / orchestration, MEDIUM: source mutation, HIGH: shell/system-destructive
 const LOW_RISK_TOOLS = new Set([
   "Read", "Grep", "Glob",
   "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskOutput", "TaskStop",
-  "Agent", "TeamCreate", "SendMessage", "AskUserQuestion", "Skill",
+  "Agent", "TeamCreate", "TeamDelete", "SendMessage", "AskUserQuestion", "Skill",
 ]);
 
 const MEDIUM_RISK_TOOLS = new Set(["Write", "Edit", "MultiEdit"]);
-const HIGH_RISK_TOOLS = new Set(["Bash", "TeamDelete"]);
+const HIGH_RISK_TOOLS = new Set(["Bash"]);
 
 function normalizePathLike(value) {
   return String(value || "").replace(/\\/g, "/");

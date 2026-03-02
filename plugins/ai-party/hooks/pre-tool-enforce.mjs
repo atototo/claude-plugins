@@ -90,7 +90,8 @@ function parseTeamContract(session) {
     const block = m[2];
     const phaseRaw = block.match(/- \*\*Phase\*\*:\s*([^\n]+)/i)?.[1] ?? "";
     const instruction = block.match(/- \*\*Instructions\*\*:\s*([^\n]+)/i)?.[1] ?? "";
-    const outputPath = instruction.match(/`(\.party\/findings\/[^`]+)`/)?.[1] ?? "";
+    const outputCandidates = [...instruction.matchAll(/`(\.party\/findings\/[^`]+)`/g)].map((v) => v[1]);
+    const outputPath = outputCandidates.length > 0 ? outputCandidates[outputCandidates.length - 1] : "";
 
     byName.set(memberName, {
       name: memberName,
@@ -117,6 +118,15 @@ function isContextArtifactWrite(toolName, toolInput, phase) {
   if (!["Write", "Edit", "MultiEdit"].includes(toolName)) return false;
   const filePath = normalizePathLike(toolInput?.file_path ?? "");
   return filePath === ".party/findings/context.md" || filePath.endsWith("/.party/findings/context.md");
+}
+
+function isReviewTeamContractLiteAllowed(session, recipient, content, member) {
+  if (session?.team !== "review") return false;
+  if (!String(recipient || "").startsWith("reviewer-")) return false;
+  if (!member?.outputPath) return false;
+  const text = String(content || "");
+  // review 팀은 수동 개입이 잦으므로 output path + reviewer recipient를 만족하면 계약 경량 모드 허용
+  return text.includes(member.outputPath);
 }
 
 let payload;
@@ -262,7 +272,8 @@ if (hasLeader) {
       if (member.instruction) {
         const normalizedInstruction = normalizeText(member.instruction);
         const normalizedContent = normalizeText(content);
-        if (!normalizedContent.includes(normalizedInstruction)) {
+        const contractLiteAllowed = isReviewTeamContractLiteAllowed(session, recipient, content, member);
+        if (!normalizedContent.includes(normalizedInstruction) && !contractLiteAllowed) {
           const result = {
             decision: "block",
             permissionDecision: "deny",

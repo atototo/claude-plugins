@@ -124,8 +124,10 @@ AS-IS: IDLE → ANALYZING → PLANNING → EXECUTING → REVIEWING → AWAITING_
 TO-BE: IDLE → CONTEXTUALIZING → ANALYZING → PLANNING → EXECUTING → REVIEWING → AWAITING_APPROVAL
 ```
 
-CONTEXTUALIZING: Leader의 Conductor Context Phase. 프로젝트 컨텍스트 수집 후 워커에 배포.
-(wshobson/agents의 Conductor 패턴 참고)
+CONTEXTUALIZING: Leader의 **경량 라우팅 단계**.
+- 목적: 작업 범위 분할, 핵심 파일 인덱스, 오픈 질문 정리
+- 비목적: 리더의 선행 정밀 분석/구현 방향 확정
+- 원칙: 상세 분석은 각 워커가 담당하고, 리더는 결과를 종합해 승인 게이트로 전달
 
 ### 도구 위임 전략
 
@@ -191,7 +193,7 @@ teams/                              teams/
 
 ```
 findings/
-  ├── context.md            ← 신규: CONTEXTUALIZING phase 산출물
+  ├── context.md            ← 신규: CONTEXTUALIZING phase의 라우팅 인덱스(경량)
   ├── analysis.md           ← analyst (was: gemini-agent)
   ├── design.md             ← architect (was: claude-agent)
   ├── implementation.md     ← builder (was: codex-agent)
@@ -293,6 +295,7 @@ reviewer
   - 첫 응답 지연(초기 스폰 대기) 단축
   - 대기 워커 프롬프트 토큰 낭비 제거
   - 동시 세션 환경(Phase 4 플랫폼)에서 자원 예측성 향상
+  - `context.md` 완성 대기 병목 제거 (라우팅과 상세 분석 분리)
 - 구현 대상:
   - `hooks/auto-delegate.mjs`: "전원 스폰" 지시를 "현재 phase 스폰"으로 변경
   - `hooks/post-tool-verify.mjs` 또는 신규 훅: phase 전환 시 next-phase 멤버 스폰 트리거
@@ -312,7 +315,7 @@ reviewer
   - `PENDING_APPROVAL`: 중간 승인 대기 (인프라/배포/고위험 코드 변경)
   - `AWAITING_APPROVAL`: 최종 승인 대기 (리뷰 완료 후)
 - 정책 모델:
-  - LOW: 자동 진행 (탐색/읽기/분석)
+  - LOW: 자동 진행 (탐색/읽기/분석/오케스트레이션 정리: TeamDelete)
   - MEDIUM: 승인 요청 생성 후 대기
   - HIGH: 승인 요청 + 실행/롤백 계획 첨부 후 대기
 - 구현 대상:
@@ -348,7 +351,7 @@ reviewer
 - [x] CONTEXTUALIZING 상태 추가 (state-machine.mjs)
 - [x] Leader Conductor Context Phase 구현
 - [x] 팀별 워크플로우 패턴 (starting_phase, phase 시퀀스)
-- [x] context.md findings 핸드오프
+- [x] context.md 라우팅 인덱스 핸드오프
 
 ### Phase 3.5-G: 플랫폼 승인 정합성 (v0.9.0-rc.6)
 
@@ -356,6 +359,7 @@ reviewer
 - [x] `hooks/pre-tool-auto-approve.mjs` LOW 위험군 자동 승인으로 제한
 - [x] `hooks/post-pipeline-state.mjs` 팀별 종결 phase 예외 지원 (예: research)
 - [x] `hooks/auto-delegate.mjs` lazy spawn 불일치 문구 제거
+- [x] `TeamDelete`를 LOW 위험군 오케스트레이션 정리 작업으로 분류 (platform 모드 차단 회귀 방지)
 - [x] `approval_mode=platform` 기본 동작 + `approval_mode=cli` 디버그 모드 분리 검증
 - [x] 스킬/도구 위임 허용 상태에서 phase/contract/approval 강제 정책 회귀 없음 검증
 
@@ -380,6 +384,8 @@ reviewer
 - [ ] KPI 측정: 첫 유효 응답시간(TTFM), 전체 완료시간, 총 토큰, 스폰 수
 - [ ] 연구팀(research)에서 lazy spawn + analysis.md gate 유지 검증
 - [ ] 다중 세션(2~3개 병렬)에서 지연/에러율 회귀 없음 확인
+- [ ] `context.md` 완료 대기 없이 phase 멤버 배정/분석이 병렬 시작되는지 검증
+- [ ] leader 선행 전수 스캔 제거 후(라우팅 인덱스만 작성) 리뷰/개발/devops 토큰 사용량 비교
 
 ---
 
@@ -398,7 +404,9 @@ reviewer
 | 팀 계약 준수 | leader 위임 메시지가 teams/*.md 계약과 1:1 일치 | debug 로그에서 SendMessage content 검증 |
 | phase gate 강제 | `analysis.md` 없이 PLANNING 진입 불가 | research 팀 E2E + hook deny 로그 확인 |
 | 스폰 정책 | phase-aware lazy spawn 동작, 재스폰 없음 | spawn 로그 + session.members.spawned 검증 |
+| context 비차단 | `context.md` 작성 중에도 phase 멤버 배정/분석 시작 가능 | debug 로그에서 배정 시점/artifact 시점 비교 |
 | 승인 정책 | 위험도별 승인 분기(LOW 자동, MEDIUM/HIGH 대기) | pre-tool-enforce 로그 + approval_requested 이벤트 검증 |
+| 팀 정리 | pipeline 종료 시 TeamDelete가 platform 모드에서 불필요 차단되지 않음 | TeamDelete hook 로그 + events.ndjson 확인 |
 | 중간 승인 흐름 | `PENDING_APPROVAL`에서 승인/거절 코멘트 반영 | API/대시보드 연동 E2E 검증 |
 | 토큰 효율 | eager spawn 대비 총 토큰 감소 | debug usage 비교 |
 
