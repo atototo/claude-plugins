@@ -62,9 +62,11 @@ if (!isPipelineActive(session)) {
   process.exit(0);
 }
 
-// 4. Leader architecture: leader-agent가 멤버에 있는 경우
+// 4. Leader architecture: leader가 멤버에 있는 경우
+//    v0.9.0: { agent: "leader", role: "orchestrator" }
+//    v0.8.x: { agent: "leader-agent", role: "leader" }
 const hasLeader = session.members?.some(
-  (m) => m.agent === "leader-agent" || m.role === "leader"
+  (m) => m.agent === "leader-agent" || m.agent === "leader" || m.name === "leader"
 );
 if (hasLeader) {
   // 4a. allSpawned 체크: 전원 스폰 전까지는 Agent/TeamCreate만 허용
