@@ -35,6 +35,7 @@ if (toolName === "Write") {
   const filePath = payload?.tool_input?.file_path ?? "";
   if (filePath.includes(".party/session.json") || filePath.endsWith(SESSION_FILE)) {
     const result = {
+      decision: "block",
       permissionDecision: "deny",
       message: "[ai-party] .party/session.json is managed by hooks. Do not write directly. Use session-cli.mjs or the hook system.",
     };
@@ -73,6 +74,7 @@ if (hasLeader) {
     if (!SPAWN_ALLOWED.has(toolName)) {
       const unspawned = session.members.filter((m) => !m.spawned);
       const result = {
+        decision: "block",
         permissionDecision: "deny",
         message: `[ai-party] Spawn phase: only Agent calls allowed until all members spawned. Unspawned: ${unspawned.map(m => m.agent).join(", ")}. Call Agent to spawn them now.`,
       };
@@ -92,6 +94,7 @@ if (HOST_DIRECT_STATES.has(session.phase)) {
 // 6. 차단 대상이면 deny (non-leader 모드에서만 도달)
 if (BLOCKED_TOOLS.has(toolName)) {
   const result = {
+    decision: "block",
     permissionDecision: "deny",
     message: `[ai-party] Pipeline active (phase: ${session.phase}). Direct ${toolName} is blocked. Use Task tool to delegate to an agent.`,
   };

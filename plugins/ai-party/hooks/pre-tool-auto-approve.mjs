@@ -51,5 +51,5 @@ if (!isPipelineActive(session)) {
 }
 
 // 파이프라인 활성 → permission prompt 없이 자동 승인
-process.stdout.write(JSON.stringify({ permissionDecision: "allow" }));
+process.stdout.write(JSON.stringify({ decision: "approve", permissionDecision: "allow" }));
 process.exit(0);
