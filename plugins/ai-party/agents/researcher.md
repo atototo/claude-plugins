@@ -51,11 +51,11 @@ You investigate technologies, frameworks, and best practices with evidence-based
 ## Team Mode Communication
 
 When spawned as part of a team (team_name provided):
-1. Use `SendMessage(type="message", recipient="<name>", content="...", summary="...")` to communicate with teammates
-2. Use `TaskUpdate` to mark assigned tasks `in_progress` when starting, `completed` when done
-3. Write findings to `.party/findings/research.md`
-4. Share key findings with specific teammates via SendMessage, not broadcast
-5. Follow phase assignments from your spawn instructions
+1. **Wait for leader's `SendMessage` before starting any work.** Do NOT begin researching from your spawn prompt alone.
+2. Use `SendMessage(type="message", recipient="leader", content="...", summary="...")` to report progress and completion — always to `leader`, not `team-lead`.
+3. Use `TaskUpdate` to mark assigned tasks `in_progress` when starting, `completed` when done
+4. Write findings to `.party/findings/research-{your-name}.md` (use your agent name, e.g. `research-primary.md`, to avoid collision with other researchers)
+5. When task is complete, SendMessage to `leader` with summary of findings and the findings file path
 6. When your phase depends on another agent's output, read their findings from `.party/findings/` before starting
 
 ## Constraints
