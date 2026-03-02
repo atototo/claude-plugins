@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// pre-tool-auto-approve.mjs — PreToolUse hook: 파이프라인 활성 시 도구 자동 승인
+// pre-tool-auto-approve.mjs — PreToolUse hook: 파이프라인 활성 시 LOW 위험군 자동 승인
 //
-// 목적: in-process agent의 Bash/Write 등 도구 호출 시 permission prompt 제거
-// bypassPermissions 모드가 in-process agent에 무효하므로 훅 레벨에서 자동 승인
+// 목적: risk-based approval 정책에서 LOW 위험군만 훅 레벨 자동 승인
+// MEDIUM/HIGH는 pre-tool-enforce(policy mode) 또는 기본 permission flow로 처리
 //
 // 실행 순서: pre-tool-enforce.mjs → (이 훅)
 //   enforce가 session.json Write를 먼저 차단하므로 여기서는 미검사
@@ -10,13 +10,14 @@
 //
 // 조건:
 // - isPipelineActive(session) === true 일 때만 작동
-// - 대상: Bash, Write, Edit, MultiEdit, Read, Grep, Glob
+// - 대상: classifyToolRisk()가 LOW로 분류한 도구만
 // - 파이프라인 비활성이면 exit(0) → 일반 작업에 영향 없음
 //
 // fail-open: 오류 시 exit 0
 
 import { readFileSync } from "node:fs";
 import { readSession, isPipelineActive, isSessionValid, isSessionStale } from "../lib/session.mjs";
+import { classifyToolRisk, isAutoApproveRisk, resolveApprovalMode } from "../lib/approval.mjs";
 
 let payload;
 try {
@@ -27,15 +28,6 @@ try {
 }
 
 const toolName = payload?.tool_name ?? "";
-
-// 자동 승인 대상 도구
-const AUTO_APPROVE_TOOLS = new Set([
-  "Bash", "Write", "Edit", "MultiEdit", "Read", "Grep", "Glob",
-]);
-
-if (!AUTO_APPROVE_TOOLS.has(toolName)) {
-  process.exit(0);
-}
 
 // 세션 확인
 const session = readSession();
@@ -50,6 +42,16 @@ if (!isPipelineActive(session)) {
   process.exit(0);
 }
 
-// 파이프라인 활성 → permission prompt 없이 자동 승인
-process.stdout.write(JSON.stringify({ decision: "approve", permissionDecision: "allow" }));
+const riskLevel = classifyToolRisk(toolName);
+if (!isAutoApproveRisk(riskLevel)) {
+  process.exit(0);
+}
+
+// LOW 위험군만 자동 승인
+process.stdout.write(JSON.stringify({
+  decision: "approve",
+  permissionDecision: "allow",
+  approval_mode: resolveApprovalMode(session),
+  risk_level: riskLevel,
+}));
 process.exit(0);

@@ -36,6 +36,31 @@ function pendingMembersForPhase(activeSession, phase) {
   );
 }
 
+const CORE_PHASE_ORDER = [
+  STATES.ANALYZING,
+  STATES.PLANNING,
+  STATES.EXECUTING,
+  STATES.REVIEWING,
+];
+
+function enabledWorkflowPhases(activeSession) {
+  const enabled = new Set();
+  for (const member of activeSession?.members || []) {
+    for (const phase of memberPhases(member)) {
+      if (CORE_PHASE_ORDER.includes(phase)) {
+        enabled.add(phase);
+      }
+    }
+  }
+
+  // 팀 contract에서 phase를 읽지 못한 경우 시작 phase 기반으로 최소 복원
+  if (enabled.size === 0) {
+    enabled.add(String(activeSession?.starting_phase_after_context || STATES.ANALYZING).toUpperCase());
+  }
+
+  return enabled;
+}
+
 const session = readSession();
 
 // Guard: 세션 없음 → 무시
@@ -53,6 +78,27 @@ const resolveNextAfterContext = (activeSession) => {
   return STATES.ANALYZING;
 };
 
+function resolveNextPipelinePhase(activeSession, currentPhase) {
+  const current = String(currentPhase || "").toUpperCase();
+  if (current === STATES.CONTEXTUALIZING) {
+    return resolveNextAfterContext(activeSession);
+  }
+
+  const enabled = enabledWorkflowPhases(activeSession);
+  const currentIdx = CORE_PHASE_ORDER.indexOf(current);
+  if (currentIdx < 0) {
+    return STATES.AWAITING_APPROVAL;
+  }
+
+  for (let i = currentIdx + 1; i < CORE_PHASE_ORDER.length; i += 1) {
+    const candidate = CORE_PHASE_ORDER[i];
+    if (enabled.has(candidate)) {
+      return candidate;
+    }
+  }
+  return STATES.AWAITING_APPROVAL;
+}
+
 // ── Phase → artifact → 다음 phase 매핑 ──
 // B1: ANALYZING 항목 추가
 const PHASE_ARTIFACTS = {
@@ -63,22 +109,22 @@ const PHASE_ARTIFACTS = {
   },
   [STATES.ANALYZING]: {
     artifact: join(cwd, FINDINGS_DIR, "analysis.md"),
-    next: STATES.PLANNING,
+    next: (activeSession) => resolveNextPipelinePhase(activeSession, STATES.ANALYZING),
     label: "Analysis complete",
   },
   [STATES.PLANNING]: {
     artifact: join(cwd, FINDINGS_DIR, "design.md"),
-    next: STATES.EXECUTING,
+    next: (activeSession) => resolveNextPipelinePhase(activeSession, STATES.PLANNING),
     label: "Planning complete",
   },
   [STATES.EXECUTING]: {
     artifact: join(cwd, FINDINGS_DIR, "implementation.md"),
-    next: STATES.REVIEWING,
+    next: (activeSession) => resolveNextPipelinePhase(activeSession, STATES.EXECUTING),
     label: "Execution complete",
   },
   [STATES.REVIEWING]: {
     artifact: join(cwd, FINDINGS_DIR, "review.md"),
-    next: STATES.AWAITING_APPROVAL,
+    next: (activeSession) => resolveNextPipelinePhase(activeSession, STATES.REVIEWING),
     label: "Review complete",
   },
 };
@@ -98,7 +144,7 @@ const nextPhase = typeof phaseConfig.next === "function"
   ? phaseConfig.next(freshSession)
   : phaseConfig.next;
 
-const result = transition(nextPhase, phaseConfig.label);
+const result = transition(nextPhase, phaseConfig.label, { skipGuard: true });
 if (result.ok) {
   const afterTransition = readSession();
   const pendingNext = pendingMembersForPhase(afterTransition, nextPhase);

@@ -305,31 +305,66 @@ reviewer
   - [ ] `hooks/post-tool-verify.mjs`는 "전원 스폰 게이트" 제거 + phase 기반 진행 안내로 전환됨 (부분 완료)
   - [ ] 완전 자동 next-phase 스폰(호스트 Agent 호출 대행)은 미구현 (현재는 안내+강제 조합)
 
+### Step 9: Risk-based Approval Bridge (v0.9.0-rc.6 플랫폼 정합성)
+
+- 목표: "최종 승인만"이 아니라 고위험 액션 직전에도 플랫폼 승인 게이트를 강제한다.
+- 상태 모델:
+  - `PENDING_APPROVAL`: 중간 승인 대기 (인프라/배포/고위험 코드 변경)
+  - `AWAITING_APPROVAL`: 최종 승인 대기 (리뷰 완료 후)
+- 정책 모델:
+  - LOW: 자동 진행 (탐색/읽기/분석)
+  - MEDIUM: 승인 요청 생성 후 대기
+  - HIGH: 승인 요청 + 실행/롤백 계획 첨부 후 대기
+- 구현 대상:
+  - `hooks/pre-tool-enforce.mjs`: 위험 명령 탐지 시 진행 차단 + `approval_requested` 이벤트 기록
+  - `hooks/pre-tool-auto-approve.mjs`: 파이프라인 자동 승인 범위를 LOW 위험군으로 제한
+  - `hooks/post-pipeline-state.mjs`: 팀별 phase 종결 예외 지원 (예: research는 `PLANNING -> AWAITING_APPROVAL`)
+  - `hooks/auto-delegate.mjs`: "모든 워커는 이미 스폰" 문구 제거 (lazy spawn과 정합)
+- 적용 기준:
+  - 플랫폼 모드 기본값 `approval_mode=platform`
+  - CLI 승인 입력은 로컬 디버그 전용(`approval_mode=cli`)
+
 ---
 
 ## 4. 구현 체크리스트
 
 ### Phase 3.5-A: 에이전트 전환 (v0.9.0-alpha)
 
-- [ ] 역할 에이전트 8개 .md 파일 생성
-- [ ] agents/resources/ 디렉토리 + 템플릿 파일
-- [ ] 기존 에이전트 4개 deprecated 마킹
-- [ ] pre-tool-agent-inject.mjs 역할→모델 매핑 추가
-- [ ] auto-delegate.mjs 스폰 로직 변경
+- [x] 역할 에이전트 8개 .md 파일 생성
+- [x] agents/resources/ 디렉토리 + 템플릿 파일
+- [x] 기존 에이전트 4개 deprecated 마킹
+- [x] pre-tool-agent-inject.mjs 역할→모델 매핑 추가
+- [x] auto-delegate.mjs 스폰 로직 변경
 
 ### Phase 3.5-B: 팀 전환 (v0.9.0-beta)
 
-- [ ] 기존 팀 4개 역할 기반으로 수정
-- [ ] 신규 팀 6개 파일 생성 (review, security, feature, fullstack, research, migration)
-- [ ] post-team-init.mjs 파싱 로직 확장
-- [ ] 팀별 trigger_keywords 확장
+- [x] 기존 팀 4개 역할 기반으로 수정
+- [x] 신규 팀 6개 파일 생성 (review, security, feature, fullstack, research, migration)
+- [x] post-team-init.mjs 파싱 로직 확장
+- [x] 팀별 trigger_keywords 확장
 
 ### Phase 3.5-C: 상태 머신 + Conductor (v0.9.0-rc)
 
-- [ ] CONTEXTUALIZING 상태 추가 (state-machine.mjs)
-- [ ] Leader Conductor Context Phase 구현
-- [ ] 팀별 워크플로우 패턴 (starting_phase, phase 시퀀스)
-- [ ] context.md findings 핸드오프
+- [x] CONTEXTUALIZING 상태 추가 (state-machine.mjs)
+- [x] Leader Conductor Context Phase 구현
+- [x] 팀별 워크플로우 패턴 (starting_phase, phase 시퀀스)
+- [x] context.md findings 핸드오프
+
+### Phase 3.5-G: 플랫폼 승인 정합성 (v0.9.0-rc.6)
+
+- [x] `hooks/pre-tool-enforce.mjs` 위험도 분류 + `approval_requested` 이벤트 기록
+- [x] `hooks/pre-tool-auto-approve.mjs` LOW 위험군 자동 승인으로 제한
+- [x] `hooks/post-pipeline-state.mjs` 팀별 종결 phase 예외 지원 (예: research)
+- [x] `hooks/auto-delegate.mjs` lazy spawn 불일치 문구 제거
+- [x] `approval_mode=platform` 기본 동작 + `approval_mode=cli` 디버그 모드 분리 검증
+- [x] 스킬/도구 위임 허용 상태에서 phase/contract/approval 강제 정책 회귀 없음 검증
+
+### Phase 3.5-E: 팀 계약 회귀 방지 (v0.9.0-rc.4)
+
+- [x] leader → worker SendMessage가 teams/*.md Instructions/output path를 그대로 포함하는지 검증
+- [x] 연구팀(research)에서 `research-primary.md`/`research-secondary.md` 이후 `analysis.md` synthesis 생성 확인
+- [x] ANALYZING phase에서 architect에게 `review.md`를 지시하면 pre-tool-enforce가 차단하는지 검증
+- [x] spawn phase Bash 차단 후에도 Read/Grep 기반 session 복구가 동작하는지 검증
 
 ### Phase 3.5-D: 검증 (v0.9.0)
 
@@ -337,14 +372,7 @@ reviewer
 - [ ] 신규 팀 6개 테스트
 - [ ] permission_prompt 0건 확인
 - [ ] model injection 회귀 없음 확인
-- [ ] 도구 위임 (multi-delegate 경유) 테스트
-
-### Phase 3.5-E: 팀 계약 회귀 방지 (v0.9.0-rc.4)
-
-- [ ] leader → worker SendMessage가 teams/*.md Instructions/output path를 그대로 포함하는지 검증
-- [ ] 연구팀(research)에서 `research-primary.md`/`research-secondary.md` 이후 `analysis.md` synthesis 생성 확인
-- [ ] ANALYZING phase에서 architect에게 `review.md`를 지시하면 pre-tool-enforce가 차단하는지 검증
-- [ ] spawn phase Bash 차단 후에도 Read/Grep 기반 session 복구가 동작하는지 검증
+- [ ] 도구 위임 (Bash 래퍼 경유 + 필요 시 multi-delegate 스킬) 테스트
 
 ### Phase 3.5-F: 성능/토큰 최적화 (v0.9.0-rc.5)
 
@@ -365,11 +393,13 @@ reviewer
 | 모델 매핑 | opus/sonnet 올바르게 주입 | --debug 로그 확인 |
 | 팀 선택 | trigger_keywords 매칭 정상 | 각 키워드로 테스트 |
 | 하위 호환 | 기존 에이전트명도 인식 | deprecated 에이전트로 직접 스폰 |
-| 도구 위임 | Gemini/Codex CLI Bash 경유 | multi-delegate 스킬 테스트 |
+| 도구 위임 | Gemini/Codex CLI Bash 경유 + 선택적 스킬 위임 | 래퍼 스크립트 + multi-delegate 스킬 테스트 |
 | 상태 전이 | CONTEXTUALIZING 포함 전체 흐름 | bugfix 팀 E2E |
 | 팀 계약 준수 | leader 위임 메시지가 teams/*.md 계약과 1:1 일치 | debug 로그에서 SendMessage content 검증 |
 | phase gate 강제 | `analysis.md` 없이 PLANNING 진입 불가 | research 팀 E2E + hook deny 로그 확인 |
 | 스폰 정책 | phase-aware lazy spawn 동작, 재스폰 없음 | spawn 로그 + session.members.spawned 검증 |
+| 승인 정책 | 위험도별 승인 분기(LOW 자동, MEDIUM/HIGH 대기) | pre-tool-enforce 로그 + approval_requested 이벤트 검증 |
+| 중간 승인 흐름 | `PENDING_APPROVAL`에서 승인/거절 코멘트 반영 | API/대시보드 연동 E2E 검증 |
 | 토큰 효율 | eager spawn 대비 총 토큰 감소 | debug usage 비교 |
 
 ### 성능 검증
@@ -392,6 +422,8 @@ reviewer
 | 인스턴스 관리 | 단일 타입 (Claude) |
 | 설정 외부화 | 팀/에이전트 설정이 .md 파일로 분리 |
 | 결과 수집 | .party/findings/ 구조 유지 |
+| 티켓 정합성 | ticket/task/session/approval/event를 ticket_id 기준으로 추적 가능 |
+| 승인 일관성 | 플랫폼 승인 없이는 MEDIUM/HIGH 액션 실행 불가 |
 
 ---
 
@@ -404,6 +436,14 @@ reviewer
 | Phase 4: Platform | **단순화** | 단일 API(Anthropic) → 인증/인스턴스 관리 1/3 |
 | Phase 5: Dashboard | **변경 없음** | .party/ 구조 유지, findings 동일 |
 | Phase 6: Production | **단순화** | 단일 런타임 → 스케일링/모니터링 단순화 |
+
+### 필수 보강 항목 (플랫폼 티켓 중심)
+
+- 티켓을 1급 객체로 승격: session 중심 조회가 아니라 ticket 중심 조회를 기본으로 전환
+- 승인 게이트 이원화: 중간(`PENDING_APPROVAL`) + 최종(`AWAITING_APPROVAL`)
+- 승인 데이터 표준화: 요청 payload, 결정(comment 포함), 실행 재개 시점까지 이벤트로 기록
+- 운영 안전성: k8s/terraform/helm/배포 명령은 HIGH 위험군으로 분류해 사전 승인 강제
+- UX 정합성: 대시보드 티켓 상세에서 "의도/근거/영향/롤백"을 항상 확인 가능해야 함
 
 ### 유지되는 것
 

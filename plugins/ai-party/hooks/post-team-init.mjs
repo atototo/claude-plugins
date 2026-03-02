@@ -57,6 +57,8 @@ const TERMINAL_PHASES = new Set([
 ]);
 
 const cwd = process.cwd();
+const requestedApprovalMode = String(process.env.AI_PARTY_APPROVAL_MODE || process.env.APPROVAL_MODE || "").toLowerCase();
+const approvalMode = requestedApprovalMode === "cli" ? "cli" : "platform";
 const existingSession = readSession(cwd);
 if (existingSession && isSessionValid(existingSession) && !isSessionStale(existingSession)) {
   // teamName이 다르면 새 세션으로 덮어쓰기
@@ -83,6 +85,10 @@ if (existingSession && isSessionValid(existingSession) && !isSessionStale(existi
           patched = true;
         } catch { /* ignore */ }
       }
+    }
+    if (!existingSession.approval_mode) {
+      existingSession.approval_mode = approvalMode;
+      patched = true;
     }
     // lazy-spawn 호환: members[].phases 누락 시 팀 정의에서 복원
     if (Array.isArray(existingSession.members) && existingSession.members.some((m) => !Array.isArray(m.phases))) {
@@ -285,6 +291,7 @@ const session = createSession({ team: teamType || teamName, task, members });
 session.pluginRoot = join(__dirname, ".."); // import.meta.url 기반 절대 경로
 session.starting_phase = startingPhase;     // 파이프라인 시작 phase (CONTEXTUALIZING)
 session.starting_phase_after_context = startingPhaseAfterContext; // CONTEXTUALIZING 완료 후 phase
+session.approval_mode = approvalMode;       // platform(기본) | cli(로컬 디버그)
 
 try {
   writeSession(session, cwd);

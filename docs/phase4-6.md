@@ -52,7 +52,7 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 ├── 웹 대시보드 + API              ├── 파이프라인 상태 머신
 ├── 세션/이력/승인 DB              ├── 3계층 강제 훅
 ├── Claude Code 인스턴스 관리       ├── 파일 핸드오프 (.party/)
-└── 사용자 인터페이스              └── 승인 게이트 (CLI)
+└── 사용자 인터페이스              └── 승인 게이트 (risk-based)
          │                                  ▲
          └─── ai-party 플러그인을 설치한 ────┘
               Claude Code 인스턴스를 실행
@@ -84,9 +84,13 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 - [ ] SQLite DB 스키마 설계
   - projects: id, name, repo_path, branch_strategy, tech_stack, conventions
   - credentials: id, project_id, type, encrypted_value, scope
-  - sessions: id, project_id, team, task, status, created_at, completed_at
+  - tickets: id, project_id, title, request, risk_level, priority, status, created_at, completed_at
+  - sessions: id, ticket_id, team, task, status, created_at, completed_at
   - findings: id, session_id, phase, content, created_at
-  - approvals: id, session_id, summary, status, decided_at
+  - ticket_events: id, ticket_id, session_id, type, payload_json, created_at
+  - approval_requests: id, ticket_id, session_id, gate_type, risk_level, summary, payload_json, status, requested_at
+  - approval_decisions: id, approval_request_id, decision, comment, decided_by, decided_at
+  - ticket_comments: id, ticket_id, author, body, created_at
 - [ ] 프로젝트 CRUD API
 - [ ] 인증 정보 암호화 저장
 
@@ -100,11 +104,31 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
   - teammate mode 기본값 `in-process` (tmux/split-pane는 로컬 디버깅 전용)
   - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 환경 표준화
   - phase-aware lazy spawn (leader + 현재 phase 멤버만 스폰, 다음 phase는 on-demand)
+  - 승인 정책 모드: `approval_mode=platform` 기본, `cli`는 로컬 디버그 전용
+  - risk-based gate: LOW 자동, MEDIUM/HIGH는 플랫폼 승인 후 진행
+  - 스킬/도구 위임: 기본 허용 (단, phase/contract/approval 정책 위반 시 차단)
+
+### Step 17-A: Mode Resolver (single | party-light | party-full)
+
+- [ ] 티켓 입력 시 모드 자동 결정기 추가
+  - `single`: 저위험/저복잡도. 단일 에이전트 중심으로 빠르게 처리
+  - `party-light`: 중간 복잡도. leader + 최소 워커 조합
+  - `party-full`: 고위험/고복잡도. 전체 파이프라인 + 중간 승인 게이트
+- [ ] 결정 기준 정의 (예: risk_level, blast radius, requested scope, SLA)
+- [ ] 단일 모드도 에이전트 기반으로 실행(작업 큐를 통해 동시 다중 티켓 처리)
+- [ ] 모드 결정 결과를 `ticket_events`에 기록하고 대시보드에 노출
 
 ### Step 18: API 서버
 
 - [ ] 기술 스택 선정 (Node.js/Fastify 또는 Python/FastAPI)
 - [ ] REST API 엔드포인트
+  - `POST /tickets` — 사용자 요청 티켓 생성 (Jira 유사 진입점)
+  - `GET /tickets/:id` — 티켓 상세 (상태, 단계, 담당 에이전트, 산출물)
+  - `GET /tickets/:id/events` — 파이프라인 이벤트 타임라인
+  - `POST /tickets/:id/comments` — 의견/질문/요청 전달
+  - `POST /approval-requests/:id/approve` — 승인
+  - `POST /approval-requests/:id/reject` — 거절 + 사유
+  - `POST /approval-requests/:id/revise` — 수정 요구 + 코멘트
 - [ ] claude remote-control 연동
 
 ---
@@ -117,20 +141,23 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 ### Step 19: 웹 대시보드 (읽기)
 
 - [ ] 프론트엔드 기술 스택 선정
-- [ ] 화면: 프로젝트 목록, 활성 세션, findings 뷰어, 에이전트 상태
+- [ ] 화면: 프로젝트 목록, 티켓 보드(Backlog/In Progress/Pending Approval/Done), 활성 세션
+- [ ] 티켓 상세: 단계별 진행, findings/PR/실행 명령, 에이전트 메시지, 의견 스레드
 - [ ] 실시간 업데이트 (WebSocket/SSE)
 
 ### Step 20: 승인 게이트 UI
 
-- [ ] AWAITING_APPROVAL → 웹 알림
-- [ ] 승인 화면: git diff + findings + approve/reject/revise
+- [ ] `PENDING_APPROVAL`(중간) / `AWAITING_APPROVAL`(최종) 모두 웹 알림
+- [ ] 승인 화면: 제안 방향(무엇/왜/영향/리스크) + git diff/findings/명령 + 롤백 플랜
 - [ ] 승인 이력 관리
+- [ ] 승인/거절 시 코멘트 필수화, 티켓 타임라인에 즉시 반영
 
 ### Step 21: 이력 + 분석
 
 - [ ] 팀별/프로젝트별 성공률, 평균 소요 시간
 - [ ] 에이전트별 성능 비교
 - [ ] 토큰 비용 분석
+- [ ] 승인 지표: 승인 대기 시간, 승인율/거절율, 재작업률
 - [ ] 추세 그래프
 
 ### Phase 5에서 활성화할 ai-party 기능
@@ -138,6 +165,7 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 - [ ] **tickets.mjs PostToolUse 미러링**: Leader TaskCreate → `.party/tickets/` 자동 생성
 - [ ] **`/party-board` 칸반**: tickets 연동 후 터미널 칸반 활성화
 - [ ] **events.ndjson → 대시보드 연동**: 이벤트 스트림 → WebSocket 브릿지
+- [ ] **approval_requested 이벤트 브릿지**: 고위험 도구 실행 전 플랫폼 승인 대기 전환
 
 ---
 
@@ -154,6 +182,7 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 - [ ] GitHub Webhook (Issue → 자동 팀 구성)
 - [ ] 스케줄 기반 실행 (cron)
 - [ ] 모니터링 알림 연동 (에러 → 자동 bugfix 소집)
+- [ ] 모니터링 이벤트 → 자동 티켓 등록 → Mode Resolver로 실행 모드 자동 선택
 
 ### Step 24: 동시 실행 + 스케일링
 

@@ -18,8 +18,11 @@ import {
   BLOCKED_TOOLS,
   HOST_DIRECT_STATES,
   SESSION_FILE,
+  EVENT_TYPES,
 } from "../lib/constants.mjs";
 import { readSession, isPipelineActive, isSessionValid, isSessionStale } from "../lib/session.mjs";
+import { emit } from "../lib/events.mjs";
+import { classifyToolRisk, resolveApprovalMode, APPROVAL_MODES } from "../lib/approval.mjs";
 
 function resolveRole(name) {
   const known = ["security-auditor", "researcher", "architect", "reviewer", "builder", "analyst", "deployer"];
@@ -101,6 +104,10 @@ function parseTeamContract(session) {
   return { byName };
 }
 
+function normalizeText(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
 let payload;
 try {
   const raw = readFileSync("/dev/stdin", "utf-8");
@@ -125,15 +132,10 @@ if (toolName === "Write") {
   }
 }
 
-// 1. 오케스트레이션 도구는 기본 허용 (단, SendMessage는 규약 검사를 위해 예외)
-if (toolName !== "SendMessage" && ALLOWED_TOOLS.has(toolName)) {
-  process.exit(0);
-}
-
-// 2. 세션 읽기
+// 1. 세션 읽기
 const session = readSession();
 
-// 2.5 세션 유효성/staleness 검증 — invalid/stale이면 enforcement skip
+// 2. 세션 유효성/staleness 검증 — invalid/stale이면 enforcement skip
 if (session && (!isSessionValid(session) || isSessionStale(session))) {
   process.exit(0);
 }
@@ -143,14 +145,50 @@ if (!isPipelineActive(session)) {
   process.exit(0);
 }
 
-// 4. Leader architecture: leader가 멤버에 있는 경우
+// 4. risk-based approval gate
+const riskLevel = classifyToolRisk(toolName);
+const approvalMode = resolveApprovalMode(session);
+if (
+  approvalMode === APPROVAL_MODES.PLATFORM &&
+  (riskLevel === "MEDIUM" || riskLevel === "HIGH")
+) {
+  try {
+    emit(EVENT_TYPES.APPROVAL_REQUESTED, {
+      source: "pre-tool-enforce",
+      approval_mode: approvalMode,
+      risk_level: riskLevel,
+      phase: session?.phase ?? null,
+      team: session?.team ?? null,
+      tool_name: toolName,
+      tool_input: payload?.tool_input ?? {},
+      summary: `Platform approval required: ${toolName} (${riskLevel})`,
+    });
+  } catch {
+    // fail-open for event logging
+  }
+
+  const result = {
+    decision: "block",
+    permissionDecision: "deny",
+    message: `[ai-party] ${toolName} is ${riskLevel} risk. approval_mode=platform requires external approval (approval_requested emitted).`,
+  };
+  process.stdout.write(JSON.stringify(result));
+  process.exit(2);
+}
+
+// 5. 오케스트레이션 도구는 기본 허용 (단, SendMessage는 규약 검사를 위해 예외)
+if (toolName !== "SendMessage" && ALLOWED_TOOLS.has(toolName)) {
+  process.exit(0);
+}
+
+// 6. Leader architecture: leader가 멤버에 있는 경우
 //    v0.9.0: { agent: "leader", role: "orchestrator" }
 //    v0.8.x: { agent: "leader-agent", role: "leader" }
 const hasLeader = session.members?.some(
   (m) => m.agent === "leader-agent" || m.agent === "leader" || m.name === "leader"
 );
 if (hasLeader) {
-  // 4a. initial required spawn 체크:
+  // 6a. initial required spawn 체크:
   // leader + starting_phase_after_context 멤버가 스폰될 때까지 허용 도구만 사용
   const initialRequired = requiredInitialMembers(session);
   const missingInitial = initialRequired.filter((m) => !m.spawned);
@@ -167,7 +205,7 @@ if (hasLeader) {
     }
   }
 
-  // 4b. allSpawned 완료 후: leader delegation 규약 검사
+  // 6b. allSpawned 완료 후: leader delegation 규약 검사
   if (toolName === "SendMessage") {
     const type = payload?.tool_input?.type ?? "message";
     const recipient = payload?.tool_input?.recipient ?? "";
@@ -209,19 +247,32 @@ if (hasLeader) {
         process.stdout.write(JSON.stringify(result));
         process.exit(2);
       }
+      if (member.instruction) {
+        const normalizedInstruction = normalizeText(member.instruction);
+        const normalizedContent = normalizeText(content);
+        if (!normalizedContent.includes(normalizedInstruction)) {
+          const result = {
+            decision: "block",
+            permissionDecision: "deny",
+            message: `[ai-party] SendMessage blocked: message to "${recipient}" must include the exact team contract instruction from teams/${session.team}.md.`,
+          };
+          process.stdout.write(JSON.stringify(result));
+          process.exit(2);
+        }
+      }
     }
   }
 
-  // 4c. allSpawned 완료 후: Leader architecture이므로 나머지는 enforcement skip
+  // 6c. allSpawned 완료 후: Leader architecture이므로 나머지는 enforcement skip
   process.exit(0);
 }
 
-// 5. Host가 직접 사용 가능한 상태면 허용
+// 7. Host가 직접 사용 가능한 상태면 허용
 if (HOST_DIRECT_STATES.has(session.phase)) {
   process.exit(0);
 }
 
-// 6. 차단 대상이면 deny (non-leader 모드에서만 도달)
+// 7. 차단 대상이면 deny (non-leader 모드에서만 도달)
 if (BLOCKED_TOOLS.has(toolName)) {
   const result = {
     decision: "block",
@@ -232,5 +283,5 @@ if (BLOCKED_TOOLS.has(toolName)) {
   process.exit(2);
 }
 
-// 7. 나머지는 fail-open
+// 8. 나머지는 fail-open
 process.exit(0);
