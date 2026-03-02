@@ -9,6 +9,7 @@ import { readFileSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:f
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createSession, writeSession, readSession, isSessionValid, isSessionStale } from "../lib/session.mjs";
+import { transition } from "../lib/state-machine.mjs";
 import { emit } from "../lib/events.mjs";
 import {
   PARTY_DIR,
@@ -68,13 +69,17 @@ if (existingSession && isSessionValid(existingSession) && !isSessionStale(existi
       patched = true;
     }
     if (!existingSession.starting_phase) {
-      // 팀 타입에서 starting_phase 파싱 시도
+      existingSession.starting_phase = STATES.CONTEXTUALIZING;
+      patched = true;
+    }
+    if (!existingSession.starting_phase_after_context) {
+      // 팀 타입에서 starting_phase_after_context 파싱 시도
       const tt = matchTeamType(teamName);
       if (tt) {
         const mdPath = join(TEAMS_DIR, `${tt}.md`);
         try {
           const content = readFileSync(mdPath, "utf-8");
-          existingSession.starting_phase = parseStartingPhase(content);
+          existingSession.starting_phase_after_context = parseStartingPhaseAfterContext(content, tt);
           patched = true;
         } catch { /* ignore */ }
       }
@@ -185,20 +190,31 @@ function resolveRole(name) {
   return name;
 }
 
-// ── teams/*.md Workflow 섹션에서 시작 phase 파싱 ──
-// "1. **ANALYZING**:" → "ANALYZING"
-function parseStartingPhase(content) {
-  const match = content.match(/\d+\.\s+\*\*(\w+)\*\*/);
-  if (match && STATES[match[1]]) {
-    return match[1];
+// ── CONTEXTUALIZING 다음 phase 기본값 (팀 타입별) ──
+function defaultPhaseAfterContext(teamType) {
+  const planningFirstTeams = new Set(["dev-backend", "dev-frontend", "fullstack"]);
+  if (planningFirstTeams.has(teamType)) {
+    return STATES.PLANNING;
   }
   return STATES.ANALYZING; // 기본값
+}
+
+// ── teams/*.md Workflow에서 CONTEXTUALIZING 다음 phase 파싱 ──
+// "CONTEXTUALIZING → ANALYZING" / "CONTEXTUALIZING → PLANNING" 패턴 우선
+function parseStartingPhaseAfterContext(content, teamType) {
+  const match = content.match(/CONTEXTUALIZING\s*[→>-]+\s*(ANALYZING|PLANNING)/i);
+  const parsed = match?.[1]?.toUpperCase();
+  if (parsed && STATES[parsed]) {
+    return parsed;
+  }
+  return defaultPhaseAfterContext(teamType);
 }
 
 // ── 팀 타입에서 멤버 목록 + 시작 phase 로드 ──
 const teamType = matchTeamType(teamName);
 let members = [];
-let startingPhase = STATES.ANALYZING;
+let startingPhase = STATES.CONTEXTUALIZING;
+let startingPhaseAfterContext = defaultPhaseAfterContext(teamType);
 
 if (teamType) {
   const teamMdPath = join(TEAMS_DIR, `${teamType}.md`);
@@ -206,7 +222,7 @@ if (teamType) {
     try {
       const content = readFileSync(teamMdPath, "utf-8");
       members = parseMembersFromTeamMd(content);
-      startingPhase = parseStartingPhase(content);
+      startingPhaseAfterContext = parseStartingPhaseAfterContext(content, teamType);
     } catch {
       // fail-soft: 팀 MD 파싱 실패 → 빈 멤버로 생성
     }
@@ -242,7 +258,8 @@ const session = createSession({ team: teamType || teamName, task, members });
 
 // 훅 전용 메타데이터: LLM 프롬프트에 의존하지 않는 결정론적 값
 session.pluginRoot = join(__dirname, ".."); // import.meta.url 기반 절대 경로
-session.starting_phase = startingPhase;     // 팀 MD Workflow에서 파싱한 첫 phase
+session.starting_phase = startingPhase;     // 파이프라인 시작 phase (CONTEXTUALIZING)
+session.starting_phase_after_context = startingPhaseAfterContext; // CONTEXTUALIZING 완료 후 phase
 
 try {
   writeSession(session, cwd);
@@ -255,6 +272,14 @@ try {
   process.stdout.write(JSON.stringify(msg));
   process.exit(0);
 }
+
+// ── 초기 전환: IDLE → CONTEXTUALIZING ──
+// 팀 생성 직후 컨텍스트 수집 phase로 즉시 진입한다.
+const bootTransition = transition(
+  STATES.CONTEXTUALIZING,
+  "Team initialized — entering contextualizing phase",
+  { cwd }
+);
 
 // ── 이벤트 기록 ──
 try {
@@ -277,8 +302,10 @@ const msg = {
   continue: true,
   systemMessage: [
     `[ai-party] Session initialized: ${session.id}`,
-    `Team: ${session.team} | Members: ${members.length} | Phase: ${session.phase}`,
+    `Team: ${session.team} | Members: ${members.length} | Phase: ${bootTransition.ok ? STATES.CONTEXTUALIZING : session.phase}`,
+    `Next after CONTEXTUALIZING: ${session.starting_phase_after_context}`,
     `Directories: ${PARTY_DIR}/, ${FINDINGS_DIR}/, ${TICKETS_DIR}/`,
+    ...(bootTransition.ok ? [] : [`WARNING: Initial transition failed: ${bootTransition.error}`]),
     "",
     "session.json은 훅이 관리합니다. Write 도구로 직접 수정하지 마세요.",
     "다음 단계: Leader와 Worker 에이전트를 Task 도구로 스폰하세요.",

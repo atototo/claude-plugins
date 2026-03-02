@@ -3,6 +3,7 @@
 // ── Pipeline states ──
 export const STATES = {
   IDLE: "IDLE",
+  CONTEXTUALIZING: "CONTEXTUALIZING",
   ANALYZING: "ANALYZING",
   PLANNING: "PLANNING",
   EXECUTING: "EXECUTING",
@@ -63,6 +64,7 @@ export const AGENT_MODEL_MAP = {
 export const PARTY_DIR = ".party";
 export const SESSION_FILE = ".party/session.json";
 export const FINDINGS_DIR = ".party/findings";
+export const CONTEXT_ARTIFACT = ".party/findings/context.md";
 export const TICKETS_DIR = ".party/tickets";
 export const EVENTS_FILE = ".party/events.ndjson";
 

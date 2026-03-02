@@ -48,10 +48,31 @@ cat .party/session.json | head -20
 ```
 - Read `pluginRoot` field for plugin path (used for state-cli.mjs).
 - Read `starting_phase` for the starting phase.
+- Read `starting_phase_after_context` for the phase after CONTEXTUALIZING.
 - Read `members` for team composition.
-- **Initial state transition (IDLE -> first phase) is handled by the hook. No manual transition needed.**
+- **Initial state transition (IDLE -> CONTEXTUALIZING) is handled by the hook. No manual transition needed.**
 
-### Step 2: Create Tasks with Dependencies
+### Step 2: Run CONTEXTUALIZING Phase (Conductor Context)
+
+When current phase is `CONTEXTUALIZING`, do this first:
+
+1. Collect project context using Read/Grep/Glob:
+   - Locate relevant files (`package.json`, core source files, config, entrypoints)
+   - Identify code patterns related to the user request
+   - Summarize current state and constraints
+2. Write `.party/findings/context.md` with:
+   - Project overview
+   - Related file list (path + role)
+   - Current code patterns workers must reference
+   - Task scope and implementation approach
+3. After writing `context.md`, stop using Grep/Glob/Read on source files.
+   - From ANALYZING and later phases, use only SendMessage + TaskList for orchestration.
+   - Always provide workers the context path: `.party/findings/context.md`
+4. Writing `context.md` triggers auto-transition from CONTEXTUALIZING to next phase.
+   - Default next: `ANALYZING`
+   - Team override: `PLANNING` when `starting_phase_after_context` is `PLANNING`
+
+### Step 3: Create Tasks with Dependencies
 
 Create tasks per workflow using TaskCreate.
 Set dependency chains with `addBlockedBy`.
@@ -64,7 +85,7 @@ TaskCreate("Implement fix") -> task #3, addBlockedBy: [#2]
 TaskCreate("Review changes") -> task #4, addBlockedBy: [#3]
 ```
 
-### Step 3: Instruct Workers
+### Step 4: Instruct Workers
 
 Send specific instructions to each worker via SendMessage:
 ```
@@ -76,7 +97,7 @@ SendMessage(
 )
 ```
 
-### Step 4: Monitor & Transition
+### Step 5: Monitor & Transition
 
 Track progress with TaskList.
 
@@ -91,12 +112,13 @@ On each phase completion:
 3. Send start instructions to next phase workers via SendMessage
 
 Phase -> Artifact -> Next State (hook auto-transition):
+- CONTEXTUALIZING -> context.md -> ANALYZING (default) or PLANNING (team-specific)
 - ANALYZING -> analysis.md -> PLANNING
 - PLANNING -> design.md -> EXECUTING
 - EXECUTING -> implementation.md -> REVIEWING
 - REVIEWING -> review.md -> AWAITING_APPROVAL
 
-### Step 5: Approval Gate
+### Step 6: Approval Gate
 
 After all phases complete:
 1. Collect `.party/findings/` files (Read)
@@ -113,7 +135,7 @@ After all phases complete:
    )
    ```
 
-### Step 6: Handle Decision
+### Step 7: Handle Decision
 
 When Host relays user decision:
 
@@ -180,3 +202,5 @@ PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.party
 - Do not modify session.json with Write tool — hooks manage it.
 - fix_loop exceeding 3 attempts -> auto FAILED -> escalate to user.
 - Do not alter worker findings — relay originals to Host.
+- After CONTEXTUALIZING completes, do not explore source files directly (Read/Grep/Glob). Rely on `.party/findings/context.md`.
+- `.party/` runtime files may still be read as needed (e.g., `session.json`, `findings/*`, tickets).

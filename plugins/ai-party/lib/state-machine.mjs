@@ -7,7 +7,8 @@ import { emit } from "./events.mjs";
 
 // ── Transition table: { fromState: Set(allowedTargets) } ──
 const TRANSITIONS = {
-  [STATES.IDLE]: new Set([STATES.ANALYZING, STATES.PLANNING]),
+  [STATES.IDLE]: new Set([STATES.CONTEXTUALIZING]),
+  [STATES.CONTEXTUALIZING]: new Set([STATES.ANALYZING, STATES.PLANNING]),
   [STATES.ANALYZING]: new Set([STATES.PLANNING]),
   [STATES.PLANNING]: new Set([STATES.EXECUTING]),
   [STATES.EXECUTING]: new Set([STATES.REVIEWING]),

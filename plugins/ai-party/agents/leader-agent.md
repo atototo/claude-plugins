@@ -50,10 +50,31 @@ cat .party/session.json | head -20
 ```
 - `pluginRoot` 필드에서 플러그인 경로를 확인한다 (이후 state-cli.mjs 호출에 사용).
 - `starting_phase` 필드에서 시작 phase를 확인한다.
+- `starting_phase_after_context` 필드에서 CONTEXTUALIZING 이후 phase를 확인한다.
 - `members` 필드에서 팀원 구성을 확인한다.
-- **초기 상태 전환(IDLE → 첫 phase)은 훅이 자동 처리한다. 수동 전환 불필요.**
+- **초기 상태 전환(IDLE → CONTEXTUALIZING)은 훅이 자동 처리한다. 수동 전환 불필요.**
 
-### Step 2: Create Tasks with Dependencies
+### Step 2: Run CONTEXTUALIZING Phase (Conductor Context)
+
+현재 phase가 `CONTEXTUALIZING`이면 아래를 먼저 수행한다:
+
+1. Read/Grep/Glob으로 프로젝트 컨텍스트를 수집한다.
+   - 관련 파일 탐색 (`package.json`, 핵심 소스 파일, 설정, 엔트리포인트)
+   - 사용자 요청과 연결된 코드 패턴 파악
+   - 현재 상태/제약 요약
+2. `.party/findings/context.md`를 작성한다:
+   - 프로젝트 개요
+   - 관련 파일 목록 (경로 + 역할)
+   - 워커가 참조할 현재 코드 패턴
+   - 작업 범위와 접근 방향
+3. `context.md` 작성 후에는 소스 파일 대상 Grep/Glob/Read를 중단한다.
+   - ANALYZING 이후 phase에서는 SendMessage + TaskList만 사용한다.
+   - 워커에게 `.party/findings/context.md` 경로를 반드시 안내한다.
+4. `context.md` 작성이 CONTEXTUALIZING 자동 전환을 트리거한다.
+   - 기본 next: `ANALYZING`
+   - 팀 설정(`starting_phase_after_context`)이 `PLANNING`이면 PLANNING으로 전환
+
+### Step 3: Create Tasks with Dependencies
 
 팀 프리셋의 Workflow에 따라 TaskCreate로 태스크를 생성한다.
 `addBlockedBy`로 의존성 체인을 설정한다.
@@ -66,7 +87,7 @@ TaskCreate("Implement fix") → task #3, addBlockedBy: [#2]
 TaskCreate("Review changes") → task #4, addBlockedBy: [#3]
 ```
 
-### Step 3: Instruct Workers
+### Step 4: Instruct Workers
 
 각 워커에게 SendMessage로 구체적 지시를 보낸다:
 ```
@@ -78,7 +99,7 @@ SendMessage(
 )
 ```
 
-### Step 4: Monitor & Transition
+### Step 5: Monitor & Transition
 
 TaskList로 진행 상황을 추적한다.
 
@@ -93,12 +114,13 @@ TaskList로 진행 상황을 추적한다.
 3. 다음 phase 워커에게 SendMessage로 시작 지시
 
 Phase → Artifact → Next State (훅 자동 전환):
+- CONTEXTUALIZING → context.md → ANALYZING (기본) 또는 PLANNING (팀 설정)
 - ANALYZING → analysis.md → PLANNING
 - PLANNING → design.md → EXECUTING
 - EXECUTING → implementation.md → REVIEWING
 - REVIEWING → review.md → AWAITING_APPROVAL
 
-### Step 5: Approval Gate
+### Step 6: Approval Gate
 
 모든 phase 완료 후:
 1. `.party/findings/` 파일들 수집 (Read)
@@ -115,7 +137,7 @@ Phase → Artifact → Next State (훅 자동 전환):
    )
    ```
 
-### Step 6: Handle Decision
+### Step 7: Handle Decision
 
 Host가 사용자 결정을 전달하면:
 
@@ -185,3 +207,5 @@ PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.party
 - session.json을 Write 도구로 직접 수정하지 마라 — 훅이 관리한다
 - fix_loop 3회 초과 시 자동으로 FAILED — 사용자에게 에스컬레이션
 - 워커의 findings를 변조하지 않는다 — 원본을 그대로 Host에 전달한다
+- CONTEXTUALIZING 완료 후 소스 파일 직접 탐색(Read/Grep/Glob) 금지. `.party/findings/context.md`를 기준으로 오케스트레이션한다
+- `.party/` 런타임 파일(`session.json`, `findings/*`, tickets)은 계속 Read 가능

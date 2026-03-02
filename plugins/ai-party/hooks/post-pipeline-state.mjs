@@ -9,7 +9,7 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { STATES, FINDINGS_DIR } from "../lib/constants.mjs";
+import { STATES, FINDINGS_DIR, CONTEXT_ARTIFACT } from "../lib/constants.mjs";
 import { readSession, isPipelineActive, isSessionStale } from "../lib/session.mjs";
 import { transition } from "../lib/state-machine.mjs";
 
@@ -23,10 +23,21 @@ if (!isPipelineActive(session)) process.exit(0);
 if (isSessionStale(session)) process.exit(0);
 
 const cwd = process.cwd();
+const resolveNextAfterContext = (activeSession) => {
+  if (activeSession?.starting_phase_after_context === STATES.PLANNING) {
+    return STATES.PLANNING;
+  }
+  return STATES.ANALYZING;
+};
 
 // ── Phase → artifact → 다음 phase 매핑 ──
 // B1: ANALYZING 항목 추가
 const PHASE_ARTIFACTS = {
+  [STATES.CONTEXTUALIZING]: {
+    artifact: join(cwd, CONTEXT_ARTIFACT),
+    next: (activeSession) => resolveNextAfterContext(activeSession),
+    label: "Contextualizing complete",
+  },
   [STATES.ANALYZING]: {
     artifact: join(cwd, FINDINGS_DIR, "analysis.md"),
     next: STATES.PLANNING,
@@ -60,11 +71,15 @@ if (!freshSession || freshSession.phase !== session.phase) {
   process.exit(0); // 이미 전환됨
 }
 
-const result = transition(phaseConfig.next, phaseConfig.label);
+const nextPhase = typeof phaseConfig.next === "function"
+  ? phaseConfig.next(freshSession)
+  : phaseConfig.next;
+
+const result = transition(nextPhase, phaseConfig.label);
 if (result.ok) {
   const msg = {
     continue: true,
-    systemMessage: `[ai-party] State transition: ${session.phase} → ${phaseConfig.next} (${phaseConfig.label}). Pipeline continues.`,
+    systemMessage: `[ai-party] State transition: ${session.phase} → ${nextPhase} (${phaseConfig.label}). Pipeline continues.`,
   };
   process.stdout.write(JSON.stringify(msg));
 } else {
