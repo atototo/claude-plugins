@@ -308,7 +308,7 @@ const msg = {
     ...(bootTransition.ok ? [] : [`WARNING: Initial transition failed: ${bootTransition.error}`]),
     "",
     "session.json은 훅이 관리합니다. Write 도구로 직접 수정하지 마세요.",
-    "다음 단계: Leader와 Worker 에이전트를 Task 도구로 스폰하세요.",
+    "다음 단계: Leader와 Worker 에이전트를 Agent 도구로 스폰하세요.",
   ].join("\n"),
 };
 
