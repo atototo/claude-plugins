@@ -1,6 +1,6 @@
 ---
 name: dev-frontend
-description: "프론트엔드 컴포넌트 설계 → 구현 → 분석 파이프라인"
+description: "프론트엔드 컴포넌트 설계 → 구현 → 리뷰 파이프라인"
 trigger_keywords:
   - component
   - UI
@@ -17,27 +17,27 @@ trigger_keywords:
 
 # Frontend Development Team
 
-프론트엔드 개발 파이프라인. 설계 → 구현 → 기존 코드 분석.
+프론트엔드 개발 파이프라인. 설계 → 구현 → 리뷰.
 
 ## Members
 
-### claude-agent as architect
+### architect
 - **Phase**: planning
 - **Instructions**: 컴포넌트 설계, 상태 관리, 레이아웃 구조를 정의하라. 기존 디자인 시스템과 패턴을 따르라. 결과를 `.party/findings/design.md`에 저장하라.
 
-### codex-agent as builder
+### builder
 - **Phase**: executing
 - **Instructions**: 설계에 따라 컴포넌트, 스타일, 테스트를 구현하라. 접근성(WCAG) 기본 준수. 결과를 `.party/findings/implementation.md`에 저장하라.
 
-### gemini-agent as analyst
+### reviewer
 - **Phase**: reviewing
-- **Instructions**: 기존 코드베이스와의 일관성, 중복 컴포넌트 여부, 번들 사이즈 영향을 분석하라. 결과를 `.party/findings/review.md`에 저장하라.
+- **Instructions**: 기존 코드베이스와의 일관성, 중복 컴포넌트 여부, 번들 사이즈 영향, 접근성을 리뷰하라. 결과를 `.party/findings/review.md`에 저장하라.
 
 ## Workflow
 
-1. **PLANNING**: claude-agent(architect) — 컴포넌트 설계 및 구조 정의
-2. **EXECUTING**: codex-agent(builder) — depends on PLANNING
-3. **REVIEWING**: gemini-agent(analyst) — depends on EXECUTING, 기존 코드 분석
+1. **PLANNING**: architect — 컴포넌트 설계 및 구조 정의
+2. **EXECUTING**: builder — depends on PLANNING
+3. **REVIEWING**: reviewer — depends on EXECUTING
 4. **APPROVAL**: Host가 결과 종합 → 사용자에게 승인 요청
 
 ## Finding Card Sections

@@ -16,6 +16,7 @@ import {
   TICKETS_DIR,
   EVENT_TYPES,
   STATES,
+  AGENT_MODEL_MAP,
 } from "../lib/constants.mjs";
 
 // ── 경로 해결: import.meta.url 기반 (OMC 패턴) ──
@@ -116,24 +117,72 @@ function matchTeamType(teamName) {
 }
 
 // ── teams/*.md에서 멤버 파싱 ──
-// "### gemini-agent as analyst" → { name: "analyst", agent: "gemini-agent", role: "analyst" }
+// v0.9.0 역할 기반: "### analyst" → { name: "analyst", agent: "analyst", role: "analyst" }
+// v0.9.0 중복 역할: "### builder-2" → { name: "builder-2", agent: "builder", role: "builder" }
+// v0.8.x 하위 호환: "### gemini-agent as analyst" → { name: "analyst", agent: "gemini-agent", role: "analyst" }
 function parseMembersFromTeamMd(content) {
-  const memberPattern = /###\s+([\w-]+)\s+as\s+([\w-]+)/g;
+  // Members 섹션 추출
+  const membersMatch = content.match(/## Members\n([\s\S]*?)(?=\n## |$)/);
+  if (!membersMatch) return [];
+
+  const membersSection = membersMatch[1];
   const members = [];
+  const seen = new Set();
+
+  // ### 헤딩 순회
+  const headingPattern = /###\s+(.*)/g;
   let m;
-  while ((m = memberPattern.exec(content)) !== null) {
-    members.push({ name: m[2], agent: m[1], role: m[2] });
+  while ((m = headingPattern.exec(membersSection)) !== null) {
+    const heading = m[1].trim();
+
+    // 하위 호환: "gemini-agent as analyst"
+    const legacyMatch = heading.match(/^([\w-]+)\s+as\s+([\w-]+)$/);
+    if (legacyMatch) {
+      const name = legacyMatch[2];
+      if (!seen.has(name)) {
+        members.push({ name, agent: legacyMatch[1], role: name });
+        seen.add(name);
+      }
+      continue;
+    }
+
+    // v0.9.0 역할 기반: "analyst" 또는 "builder-2"
+    const roleMatch = heading.match(/^([\w-]+)$/);
+    if (roleMatch) {
+      const name = roleMatch[1];
+      const role = resolveRole(name);
+      if (!seen.has(name)) {
+        members.push({ name, agent: role, role });
+        seen.add(name);
+      }
+    }
   }
-  // leader-agent는 항상 포함 (팀 MD에 없더라도)
-  const hasLeader = members.some((mem) => mem.agent === "leader-agent");
+
+  // leader는 항상 포함 (팀 MD에 없더라도)
+  const hasLeader = members.some(
+    (mem) => mem.agent === "leader-agent" || mem.agent === "leader" || mem.name === "leader"
+  );
   if (!hasLeader) {
     members.unshift({
       name: "leader",
-      agent: "leader-agent",
+      agent: "leader",
       role: "orchestrator",
     });
   }
   return members;
+}
+
+// ── 역할명 해석: 중복 멤버의 이름에서 기본 역할을 추출 ──
+// "builder-2" → "builder", "reviewer-security" → "reviewer"
+// AGENT_MODEL_MAP 키와 매칭 (긴 이름 우선)
+function resolveRole(name) {
+  if (AGENT_MODEL_MAP[name]) return name;
+  // 긴 역할명 우선: "security-auditor" > "auditor"
+  const knownRoles = Object.keys(AGENT_MODEL_MAP).sort((a, b) => b.length - a.length);
+  for (const role of knownRoles) {
+    if (name.startsWith(`${role}-`)) return role;
+  }
+  return name;
 }
 
 // ── teams/*.md Workflow 섹션에서 시작 phase 파싱 ──
@@ -166,7 +215,7 @@ if (teamType) {
 
 // 멤버가 비어있으면 최소한 leader만
 if (members.length === 0) {
-  members = [{ name: "leader", agent: "leader-agent", role: "orchestrator" }];
+  members = [{ name: "leader", agent: "leader", role: "orchestrator" }];
 }
 
 // ── 디렉토리 생성 + 이전 아티팩트 정리 ──
