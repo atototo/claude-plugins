@@ -330,6 +330,7 @@ reviewer
   - LOW: 자동 진행 (탐색/읽기/분석/오케스트레이션 정리: TeamDelete)
   - MEDIUM: 승인 요청 생성 후 대기
   - HIGH: 승인 요청 + 실행/롤백 계획 첨부 후 대기
+  - reasoning-only MCP(`mcp__sequential-thinking__sequentialthinking`)는 LOW로 분류해 불필요 승인 대기를 방지
 - 구현 대상:
   - `hooks/pre-tool-enforce.mjs`: 위험 명령 탐지 시 진행 차단 + `approval_requested` 이벤트 기록
   - `hooks/pre-tool-auto-approve.mjs`: 파이프라인 자동 승인 범위를 LOW 위험군으로 제한
@@ -416,6 +417,8 @@ reviewer
 - [x] auto-delegate 초기 스폰 지시를 `leader only + current phase on-demand`로 수정
 - [x] post-team-init 안내 문구를 on-demand 정책으로 수정
 - [x] post-tool-verify 안내 문구를 "next-phase on-demand"로 수정
+- [x] `PENDING_APPROVAL` 상태에서도 SendMessage를 `approval_context.previous_phase` 계약으로 검증 (out-of-phase 우회 지시 차단)
+- [x] `mcp__sequential-thinking__sequentialthinking` 위험도를 LOW로 조정 (CONTEXTUALIZING 불필요 대기 방지)
 
 ---
 

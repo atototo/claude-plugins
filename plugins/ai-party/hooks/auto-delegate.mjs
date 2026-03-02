@@ -81,6 +81,7 @@ const instruction = [
   "     · 사용자 요청 원문",
   "     · 팀 구성 (역할별 에이전트 목록)",
   "     · 'CONTEXTUALIZING 단계 수행: (1) Read(.party/session.json)으로 phase 확인 (spawn 단계에서는 Bash cat 금지), (2) Grep/Glob/Read로 최소 범위 인덱스 수집, (3) .party/findings/context.md를 경량 라우팅 인덱스로 작성한다. 상세 분석은 각 워커가 담당한다.'",
+  "     · 'CONTEXTUALIZING에서는 Read/Grep/Glob 중심으로 라우팅만 수행하고, Edit/Write/Bash 및 위험 MCP 도구 호출은 금지한다.'",
   "     · '선택된 teams/{team}.md의 ## Members 섹션을 Read하고, 각 멤버의 Phase/Instructions를 계약(contract)으로 고정하라. Leader는 이 계약을 요약/재작성/파일명 변경하면 안 된다.'",
   "     · 'SendMessage 규칙: (a) 현재 phase에 해당하는 멤버에게만 지시, (b) content에 팀 Instructions의 산출물 파일 경로를 그대로 포함, (c) review.md/design.md 등 다른 phase 산출물을 앞당겨 지시 금지.'",
   "     · 'Phase gate 규칙: 다음 phase 지시 전에 canonical artifact 존재를 확인하라. ANALYZING에서는 analysis.md가 있어야 PLANNING 지시 가능하다. 팀 산출물이 커스텀 파일이면 leader가 분석 요약을 synthesis하여 .party/findings/analysis.md를 추가 작성한 뒤 진행하라.'",

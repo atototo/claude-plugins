@@ -10,6 +10,8 @@ const LOW_RISK_TOOLS = new Set([
   "Read", "Grep", "Glob",
   "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskOutput", "TaskStop",
   "Agent", "TeamCreate", "TeamDelete", "SendMessage", "AskUserQuestion", "Skill",
+  // reasoning-only MCP tool (no side effects)
+  "mcp__sequential-thinking__sequentialthinking",
 ]);
 
 const MEDIUM_RISK_TOOLS = new Set(["Write", "Edit", "MultiEdit"]);

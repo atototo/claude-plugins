@@ -336,10 +336,13 @@ if (hasLeader) {
     const recipient = payload?.tool_input?.recipient ?? "";
     const content = payload?.tool_input?.content ?? "";
     const phase = session.phase ?? "";
+    const contractPhase = phase === STATES.PENDING_APPROVAL
+      ? (session?.approval_context?.previous_phase || phase)
+      : phase;
     const contract = parseTeamContract(session);
     const member = contract?.byName?.get(recipient);
     const runtimeMember = session.members?.find((m) => m.name === recipient);
-    const isPipelinePhase = !HOST_DIRECT_STATES.has(phase);
+    const isPipelinePhase = !HOST_DIRECT_STATES.has(phase) || phase === STATES.PENDING_APPROVAL;
 
     if (isPipelinePhase && type === "message" && recipient !== "leader") {
       if (runtimeMember && !runtimeMember.spawned) {
@@ -354,11 +357,11 @@ if (hasLeader) {
     }
 
     if (isPipelinePhase && type === "message" && member && recipient !== "leader") {
-      if (!member.phases.includes(phase)) {
+      if (!member.phases.includes(contractPhase)) {
         const result = {
           decision: "block",
           permissionDecision: "deny",
-          message: `[ai-party] SendMessage blocked: recipient "${recipient}" is assigned to phase [${member.phases.join(", ")}], current phase is ${phase}.`,
+          message: `[ai-party] SendMessage blocked: recipient "${recipient}" is assigned to phase [${member.phases.join(", ")}], current phase is ${contractPhase}.`,
         };
         process.stdout.write(JSON.stringify(result));
         process.exit(2);
