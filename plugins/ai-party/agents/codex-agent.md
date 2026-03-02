@@ -1,6 +1,8 @@
 ---
+# DEPRECATED: v0.9.0 — Use builder.md instead.
+# This file is kept for backward compatibility and will be removed in v1.0.0.
 name: codex-agent
-description: Single-file code implementation specialist powered by Codex CLI. Proactively generates types, tests, and utility code. Use immediately when single-file code generation, unit tests, or DTO creation is needed.
+description: "[DEPRECATED] Use builder instead. Single-file code implementation specialist."
 
 model: haiku
 color: yellow

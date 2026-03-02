@@ -1,6 +1,8 @@
 ---
+# DEPRECATED: v0.9.0 — Use leader.md instead.
+# This file is kept for backward compatibility and will be removed in v1.0.0.
 name: leader-agent
-description: Pipeline orchestration leader. Manages workflow phases, coordinates team members, enforces state transitions, and reports results for approval. Spawned automatically by /party commands.
+description: "[DEPRECATED] Use leader instead. Pipeline orchestration leader."
 
 model: opus
 color: magenta

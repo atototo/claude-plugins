@@ -64,8 +64,9 @@ if (model) {
   changed = true;
 }
 
-// ── 3. CLI hint 주입 (found=false 우회) ──
-// 힌트를 prompt 앞에 배치하여 에이전트가 반드시 CLI를 사용하도록 강제.
+// ── 3. CLI hint 주입 (deprecated 에이전트 전용, found=false 우회) ──
+// v0.9.0: 역할 기반 에이전트는 Claude 네이티브 도구를 직접 사용.
+// CLI hint는 deprecated 에이전트(codex-agent, gemini-agent)에만 적용.
 const CLI_HINTS = {
   "codex-agent": [
     "## CRITICAL INSTRUCTION — READ FIRST",
@@ -103,9 +104,9 @@ const CLI_HINTS = {
   ].join("\n"),
 };
 
+// CLI hint는 deprecated 에이전트에만 적용 (v0.9.0 역할 에이전트는 네이티브 도구 사용)
 const hint = CLI_HINTS[agentKey];
 if (hint) {
-  // 힌트를 prompt 앞에 배치 (뒤에 넣으면 무시될 수 있음)
   updatedInput.prompt = hint + (updatedInput.prompt || "");
   changed = true;
 }

@@ -1,6 +1,8 @@
 ---
+# DEPRECATED: v0.9.0 — Use analyst.md instead.
+# This file is kept for backward compatibility and will be removed in v1.0.0.
 name: gemini-agent
-description: Large-scale analysis and documentation specialist powered by Gemini CLI. Proactively analyzes codebases and generates documentation. Use immediately when log analysis, documentation generation, or multi-file review is needed.
+description: "[DEPRECATED] Use analyst instead. Large-scale analysis and documentation specialist."
 
 model: haiku
 color: green

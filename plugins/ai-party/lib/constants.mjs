@@ -40,7 +40,19 @@ export const HOST_DIRECT_STATES = new Set([
 ]);
 
 // ── Agent → model mapping ──
+// v0.9.0: Role-based agents (primary)
+// Legacy AI-unit names kept for backward compatibility (remove in v1.0.0)
 export const AGENT_MODEL_MAP = {
+  // v0.9.0 role-based agents
+  "leader": "opus",
+  "architect": "opus",
+  "reviewer": "opus",
+  "security-auditor": "opus",
+  "analyst": "sonnet",
+  "builder": "sonnet",
+  "researcher": "sonnet",
+  "deployer": "sonnet",
+  // Legacy (deprecated — backward compat until v1.0.0)
   "leader-agent": "opus",
   "claude-agent": "opus",
   "gemini-agent": "sonnet",

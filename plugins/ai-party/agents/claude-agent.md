@@ -1,6 +1,8 @@
 ---
+# DEPRECATED: v0.9.0 — Use architect.md, reviewer.md, or security-auditor.md instead.
+# This file is kept for backward compatibility and will be removed in v1.0.0.
 name: claude-agent
-description: Architecture and code review specialist with opus-level deep reasoning. Proactively reviews code for quality, security, and design decisions. Use immediately when code review, architecture evaluation, or security analysis is needed.
+description: "[DEPRECATED] Use architect, reviewer, or security-auditor instead. Architecture and code review specialist with opus-level deep reasoning."
 
 model: opus
 color: cyan
