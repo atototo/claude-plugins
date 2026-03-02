@@ -5,7 +5,7 @@
 > OMC(oh-my-claudecode) 패턴 채택. `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 필수.
 > 관련: [index.md](index.md) | 이전 ← [phase1-2.md](phase1-2.md) | 다음 → [phase4-6.md](phase4-6.md)
 
-**현재 버전: v0.8.8**
+**현재 버전: v0.8.18**
 
 ---
 
@@ -225,10 +225,12 @@ CLI 모드: 터미널에 요약 출력, approve / reject / revise 입력
 - 티켓 진행 상황 요약 주입
 - 가벼운 힌트 수준 — L3/L2가 핵심, L1은 보조
 
-### model 자동 주입 (`pre-tool-model-inject.mjs`)
+### model 자동 주입 (`pre-tool-agent-inject.mjs`)
 
 - Agent 도구 호출 시 ai-party 에이전트면 model 파라미터 자동 주입
-- claude-agent/leader-agent → opus, gemini-agent/codex-agent → sonnet
+- opus 역할: architect, reviewer, security-auditor, leader
+- sonnet 역할: analyst, builder, researcher, deployer
+- v0.8 하위 호환: claude-agent/leader-agent → opus, gemini-agent/codex-agent → sonnet
 
 ---
 
@@ -278,7 +280,8 @@ CLI 모드: 터미널에 요약 출력, approve / reject / revise 입력
 - [x] L3: `pre-tool-enforce.mjs` — Host 직접 도구 차단
 - [x] L2: `post-tool-verify.mjs` — 스폰 추적 + 티켓 완료 체크
 - [x] L1: `pre-tool-remind.mjs` — 컨텍스트 리마인더 주입
-- [x] `pre-tool-model-inject.mjs` — 에이전트 model 자동 주입
+- [x] `pre-tool-agent-inject.mjs` — 에이전트 model 자동 주입 (역할→모델 매핑)
+- [x] `pre-tool-auto-approve.mjs` — 파이프라인 도구 자동 승인
 - [x] `hooks.json` — PreToolUse/PostToolUse 이벤트 등록 (matcher: "Agent")
 
 ### Step 11: 파이프라인 상태 머신 + 이벤트 스트림 ✅
@@ -340,3 +343,7 @@ CLI 모드: 터미널에 요약 출력, approve / reject / revise 입력
 | v0.8.6 | hooks.json "Task"→"Agent" matcher 수정, teamName 비교 |
 | v0.8.7 | TERMINAL_PHASES 가드 (COMPLETED 세션 재사용 방지) |
 | v0.8.8 | pre-tool-remind/model-inject 내부 "Task"→"Agent" 잔재 수정 |
+| v0.8.9~v0.8.15 | 파이프라인 안정화 (권한 제어, 자동 승인 개선) |
+| v0.8.16 | pre-tool-auto-approve.mjs 추가 (파이프라인 도구 자동 승인), CLI 에이전트 모델 sonnet 전환 |
+| v0.8.17 | pre-tool-agent-inject.mjs 필드명 수정, model 주입 강화 |
+| v0.8.18 | decision + permissionDecision 이중 권한 제어 |
