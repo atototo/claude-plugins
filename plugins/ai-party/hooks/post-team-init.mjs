@@ -84,6 +84,24 @@ if (existingSession && isSessionValid(existingSession) && !isSessionStale(existi
         } catch { /* ignore */ }
       }
     }
+    // lazy-spawn 호환: members[].phases 누락 시 팀 정의에서 복원
+    if (Array.isArray(existingSession.members) && existingSession.members.some((m) => !Array.isArray(m.phases))) {
+      const tt = matchTeamType(teamName);
+      if (tt) {
+        const mdPath = join(TEAMS_DIR, `${tt}.md`);
+        try {
+          const content = readFileSync(mdPath, "utf-8");
+          const parsedMembers = parseMembersFromTeamMd(content);
+          const parsedByName = new Map(parsedMembers.map((m) => [m.name, m]));
+          existingSession.members = existingSession.members.map((m) => {
+            const p = parsedByName.get(m.name);
+            if (!p) return m;
+            return { ...m, role: m.role || p.role, agent: m.agent || p.agent, phases: p.phases || [] };
+          });
+          patched = true;
+        } catch { /* ignore */ }
+      }
+    }
     if (patched) {
       try { writeSession(existingSession, cwd); } catch { /* ignore */ }
     }
@@ -122,9 +140,9 @@ function matchTeamType(teamName) {
 }
 
 // ── teams/*.md에서 멤버 파싱 ──
-// v0.9.0 역할 기반: "### analyst" → { name: "analyst", agent: "analyst", role: "analyst" }
-// v0.9.0 중복 역할: "### builder-2" → { name: "builder-2", agent: "builder", role: "builder" }
-// v0.8.x 하위 호환: "### gemini-agent as analyst" → { name: "analyst", agent: "gemini-agent", role: "analyst" }
+// v0.9.0 역할 기반: "### analyst" → { name, agent, role, phases[] }
+// v0.9.0 중복 역할: "### builder-2" → { name, agent:"builder", role:"builder", phases[] }
+// v0.8.x 하위 호환: "### gemini-agent as analyst" → { name:"analyst", agent:"gemini-agent", role:"analyst", phases[] }
 function parseMembersFromTeamMd(content) {
   // Members 섹션 추출
   const membersMatch = content.match(/## Members\n([\s\S]*?)(?=\n## |$)/);
@@ -134,18 +152,24 @@ function parseMembersFromTeamMd(content) {
   const members = [];
   const seen = new Set();
 
-  // ### 헤딩 순회
-  const headingPattern = /###\s+(.*)/g;
+  // ### 블록 순회 (헤딩 + 본문)
+  const memberPattern = /###\s+([^\n]+)\n([\s\S]*?)(?=\n###\s+|\n##\s+|$)/g;
   let m;
-  while ((m = headingPattern.exec(membersSection)) !== null) {
+  while ((m = memberPattern.exec(membersSection)) !== null) {
     const heading = m[1].trim();
+    const block = m[2];
+    const phaseRaw = block.match(/- \*\*Phase\*\*:\s*([^\n]+)/i)?.[1] ?? "";
+    const phases = phaseRaw
+      .split(",")
+      .map((v) => v.trim().toUpperCase())
+      .filter(Boolean);
 
     // 하위 호환: "gemini-agent as analyst"
     const legacyMatch = heading.match(/^([\w-]+)\s+as\s+([\w-]+)$/);
     if (legacyMatch) {
       const name = legacyMatch[2];
       if (!seen.has(name)) {
-        members.push({ name, agent: legacyMatch[1], role: name });
+        members.push({ name, agent: legacyMatch[1], role: name, phases });
         seen.add(name);
       }
       continue;
@@ -157,7 +181,7 @@ function parseMembersFromTeamMd(content) {
       const name = roleMatch[1];
       const role = resolveRole(name);
       if (!seen.has(name)) {
-        members.push({ name, agent: role, role });
+        members.push({ name, agent: role, role, phases });
         seen.add(name);
       }
     }
@@ -172,6 +196,7 @@ function parseMembersFromTeamMd(content) {
       name: "leader",
       agent: "leader",
       role: "orchestrator",
+      phases: [STATES.CONTEXTUALIZING],
     });
   }
   return members;

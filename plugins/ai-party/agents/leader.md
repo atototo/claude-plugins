@@ -43,9 +43,7 @@ When spawned, you receive team info and task description in your prompt.
 ### Step 1: Read Session & Verify
 
 **First action**: Check session info.
-```bash
-cat .party/session.json | head -20
-```
+Use `Read` on `.party/session.json` first (spawn phase may block Bash).
 - Read `pluginRoot` field for plugin path (used for state-cli.mjs).
 - Read `starting_phase` for the starting phase.
 - Read `starting_phase_after_context` for the phase after CONTEXTUALIZING.
@@ -72,7 +70,24 @@ When current phase is `CONTEXTUALIZING`, do this first:
    - Default next: `ANALYZING`
    - Team override: `PLANNING` when `starting_phase_after_context` is `PLANNING`
 
-### Step 3: Create Tasks with Dependencies
+### Step 3: Load Team Contract (Mandatory)
+
+Before assigning any worker task:
+1. Read `{pluginRoot}/teams/{session.team}.md`.
+2. Parse `## Members` section and extract each member's:
+   - `name`
+   - `Phase`
+   - `Instructions`
+   - output file path in the instruction (e.g. `.party/findings/design.md`)
+3. Build a delegation contract map in memory and follow it strictly.
+
+**Hard rules**
+- Never rewrite a member's output file path.
+- Never replace team instructions with ad-hoc custom instructions.
+- Never assign a member outside their declared phase.
+- If a member name has suffix (e.g., `researcher-2`, `builder-2`), keep that exact recipient name.
+
+### Step 4: Create Tasks with Dependencies
 
 Create tasks per workflow using TaskCreate.
 Set dependency chains with `addBlockedBy`.
@@ -85,19 +100,19 @@ TaskCreate("Implement fix") -> task #3, addBlockedBy: [#2]
 TaskCreate("Review changes") -> task #4, addBlockedBy: [#3]
 ```
 
-### Step 4: Instruct Workers
+### Step 5: Instruct Workers
 
 Send specific instructions to each worker via SendMessage:
 ```
 SendMessage(
   type="message",
   recipient="{worker-name}",
-  content="Your task: {instructions}. Task ID: #{id}. Mark in_progress when starting, completed when done. Write findings to .party/findings/{file}.md",
+  content="Your task (verbatim from team contract): {instructions}. Task ID: #{id}. Mark in_progress when starting, completed when done. Output file must exactly match the contract path.",
   summary="{phase} instructions for {role}"
 )
 ```
 
-### Step 5: Monitor & Transition
+### Step 6: Monitor & Transition
 
 Track progress with TaskList.
 
@@ -118,7 +133,15 @@ Phase -> Artifact -> Next State (hook auto-transition):
 - EXECUTING -> implementation.md -> REVIEWING
 - REVIEWING -> review.md -> AWAITING_APPROVAL
 
-### Step 6: Approval Gate
+Canonical artifact gate:
+- Do not start next phase workers until canonical artifact exists.
+- If team uses custom analyzing outputs (e.g., `research-primary.md` + `research-secondary.md`) and `analysis.md` is missing:
+  1. Read custom analyzing outputs.
+  2. Synthesize a neutral orchestration summary.
+  3. Write `.party/findings/analysis.md`.
+  4. Then start PLANNING phase workers.
+
+### Step 7: Approval Gate
 
 After all phases complete:
 1. Collect `.party/findings/` files (Read)
@@ -135,7 +158,7 @@ After all phases complete:
    )
    ```
 
-### Step 7: Handle Decision
+### Step 8: Handle Decision
 
 When Host relays user decision:
 

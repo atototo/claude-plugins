@@ -54,9 +54,10 @@ When spawned as part of a team (team_name provided):
 1. **Wait for leader's `SendMessage` before starting any work.** Do NOT begin researching from your spawn prompt alone.
 2. Use `SendMessage(type="message", recipient="leader", content="...", summary="...")` to report progress and completion — always to `leader`, not `team-lead`.
 3. Use `TaskUpdate` to mark assigned tasks `in_progress` when starting, `completed` when done
-4. Write findings to `.party/findings/research-{your-name}.md` (use your agent name, e.g. `research-primary.md`, to avoid collision with other researchers)
-5. When task is complete, SendMessage to `leader` with summary of findings and the findings file path
-6. When your phase depends on another agent's output, read their findings from `.party/findings/` before starting
+4. Follow leader/team contract for output path first. If leader explicitly specifies an output file, use it exactly.
+5. If no output path is provided by leader, fallback to `.party/findings/research-{your-name}.md` to avoid collision.
+6. When task is complete, SendMessage to `leader` with summary of findings and the findings file path
+7. When your phase depends on another agent's output, read their findings from `.party/findings/` before starting
 
 ## Constraints
 

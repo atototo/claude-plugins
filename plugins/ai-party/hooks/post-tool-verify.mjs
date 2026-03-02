@@ -3,7 +3,7 @@
 //
 // Responsibilities:
 // 1. Team spawn verification: track Agent(Task) calls → mark members as spawned
-//    → when all spawned, emit team_spawn_verified event
+//    → lazy-spawn progress messages by current phase, emit team_spawn_verified when all eventually spawned
 // 2. Ticket completion check: after agent completes, check if phase tickets are done
 //
 // Trigger: PostToolUse(Task) — runs after agent spawn/completion
@@ -15,6 +15,27 @@ import { transition } from "../lib/state-machine.mjs";
 import { arePhaseTicketsDone } from "../lib/tickets.mjs";
 import { emit } from "../lib/events.mjs";
 import { EVENT_TYPES, STATES } from "../lib/constants.mjs";
+
+function fallbackPhasesByRole(role) {
+  if (role === "leader" || role === "orchestrator") return [STATES.CONTEXTUALIZING];
+  if (role === "analyst" || role === "researcher" || role === "security-auditor") return [STATES.ANALYZING];
+  if (role === "architect") return [STATES.PLANNING];
+  if (role === "builder" || role === "deployer") return [STATES.EXECUTING];
+  if (role === "reviewer") return [STATES.REVIEWING];
+  return [];
+}
+
+function memberPhases(member) {
+  const fromMember = Array.isArray(member?.phases)
+    ? member.phases.map((v) => String(v).toUpperCase())
+    : [];
+  if (fromMember.length > 0) return fromMember;
+  return fallbackPhasesByRole(member?.role || member?.agent || "");
+}
+
+function membersForPhase(session, phase) {
+  return (session?.members || []).filter((m) => memberPhases(m).includes(String(phase).toUpperCase()));
+}
 
 let payload;
 try {
@@ -62,34 +83,41 @@ if (session.members && Array.isArray(session.members)) {
       role: member.role,
     }, { cwd, sessionId: session.id });
 
-    // Check if ALL members are now spawned
-    const allSpawned = session.members.every((m) => m.spawned);
     const unspawned = session.members.filter((m) => !m.spawned);
+    const activePhaseMembers = membersForPhase(session, session.phase);
+    const pendingInPhase = activePhaseMembers.filter((m) => !m.spawned);
+    const nextPhaseMembers = membersForPhase(session, session.starting_phase_after_context || STATES.ANALYZING)
+      .filter((m) => !m.spawned);
 
-    if (allSpawned) {
+    if (unspawned.length === 0) {
       emit(EVENT_TYPES.TEAM_SPAWN_VERIFIED, {
         team: session.team,
         memberCount: session.members.length,
       }, { cwd, sessionId: session.id });
-
+      messages.push(`[ai-party] Team spawn verified: all ${session.members.length} members spawned.`);
+    } else if (pendingInPhase.length > 0) {
       messages.push(
-        `[ai-party] Team spawn verified: all ${session.members.length} members spawned.`
+        `[ai-party] Spawned: ${agentType}. Pending in current phase (${session.phase}): ${pendingInPhase.map((m) => m.name).join(", ")}`
       );
-
-      // IDLE → 첫 phase 자동 전환: 전원 스폰 완료가 파이프라인 시작 시점
-      if (session.phase === STATES.IDLE) {
-        const targetPhase = session.starting_phase || STATES.ANALYZING;
-        const transResult = transition(targetPhase, "All members spawned — auto-starting pipeline", { cwd });
-        if (transResult.ok) {
-          messages.push(`[ai-party] Pipeline auto-started: IDLE → ${targetPhase}`);
-        } else {
-          messages.push(`[ai-party] Auto-start failed: ${transResult.error}`);
-        }
-      }
+    } else if (session.phase === STATES.CONTEXTUALIZING && nextPhaseMembers.length > 0) {
+      messages.push(
+        `[ai-party] Spawned: ${agentType}. Context phase ready. Pre-spawn recommended for next phase (${session.starting_phase_after_context}): ${nextPhaseMembers.map((m) => m.name).join(", ")}`
+      );
     } else {
       messages.push(
-        `[ai-party] Spawned: ${agentType}. Remaining: ${unspawned.map((m) => m.agent).join(", ")} (${unspawned.length} left)`
+        `[ai-party] Spawned: ${agentType}. Remaining optional/later-phase members: ${unspawned.map((m) => m.name).join(", ")}`
       );
+    }
+
+    // Legacy safety: keep IDLE auto-start path for backward compatibility.
+    if (session.phase === STATES.IDLE) {
+      const targetPhase = session.starting_phase || STATES.ANALYZING;
+      const transResult = transition(targetPhase, "Required members spawned — auto-starting pipeline", { cwd });
+      if (transResult.ok) {
+        messages.push(`[ai-party] Pipeline auto-started: IDLE → ${targetPhase}`);
+      } else {
+        messages.push(`[ai-party] Auto-start failed: ${transResult.error}`);
+      }
     }
   }
 }

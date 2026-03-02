@@ -13,6 +13,29 @@ import { STATES, FINDINGS_DIR, CONTEXT_ARTIFACT } from "../lib/constants.mjs";
 import { readSession, isPipelineActive, isSessionStale } from "../lib/session.mjs";
 import { transition } from "../lib/state-machine.mjs";
 
+function fallbackPhasesByRole(role) {
+  if (role === "leader" || role === "orchestrator") return [STATES.CONTEXTUALIZING];
+  if (role === "analyst" || role === "researcher" || role === "security-auditor") return [STATES.ANALYZING];
+  if (role === "architect") return [STATES.PLANNING];
+  if (role === "builder" || role === "deployer") return [STATES.EXECUTING];
+  if (role === "reviewer") return [STATES.REVIEWING];
+  return [];
+}
+
+function memberPhases(member) {
+  const fromMember = Array.isArray(member?.phases)
+    ? member.phases.map((v) => String(v).toUpperCase())
+    : [];
+  if (fromMember.length > 0) return fromMember;
+  return fallbackPhasesByRole(member?.role || member?.agent || "");
+}
+
+function pendingMembersForPhase(activeSession, phase) {
+  return (activeSession?.members || []).filter((m) =>
+    !m.spawned && memberPhases(m).includes(String(phase).toUpperCase())
+  );
+}
+
 const session = readSession();
 
 // Guard: 세션 없음 → 무시
@@ -77,9 +100,16 @@ const nextPhase = typeof phaseConfig.next === "function"
 
 const result = transition(nextPhase, phaseConfig.label);
 if (result.ok) {
+  const afterTransition = readSession();
+  const pendingNext = pendingMembersForPhase(afterTransition, nextPhase);
   const msg = {
     continue: true,
-    systemMessage: `[ai-party] State transition: ${session.phase} → ${nextPhase} (${phaseConfig.label}). Pipeline continues.`,
+    systemMessage: [
+      `[ai-party] State transition: ${session.phase} → ${nextPhase} (${phaseConfig.label}). Pipeline continues.`,
+      pendingNext.length > 0
+        ? `[ai-party] Lazy-spawn required for ${nextPhase}: ${pendingNext.map((m) => `${m.name}[ai-party:${m.agent}]`).join(", ")}`
+        : "",
+    ].filter(Boolean).join("\n"),
   };
   process.stdout.write(JSON.stringify(msg));
 } else {

@@ -96,6 +96,10 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 - [ ] Claude Code 인스턴스 실행 매니저
 - [ ] .party/ 결과물 수집 → DB 저장
 - [ ] 팀/에이전트 설정 외부화
+- [ ] 런타임 정책 고정:
+  - teammate mode 기본값 `in-process` (tmux/split-pane는 로컬 디버깅 전용)
+  - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 환경 표준화
+  - phase-aware lazy spawn (leader + 현재 phase 멤버만 스폰, 다음 phase는 on-demand)
 
 ### Step 18: API 서버
 

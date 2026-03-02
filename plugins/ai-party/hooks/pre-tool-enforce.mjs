@@ -11,7 +11,8 @@
 //
 // fail-open: 오류 시 항상 허용 (exit 0)
 
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import {
   ALLOWED_TOOLS,
   BLOCKED_TOOLS,
@@ -19,6 +20,86 @@ import {
   SESSION_FILE,
 } from "../lib/constants.mjs";
 import { readSession, isPipelineActive, isSessionValid, isSessionStale } from "../lib/session.mjs";
+
+function resolveRole(name) {
+  const known = ["security-auditor", "researcher", "architect", "reviewer", "builder", "analyst", "deployer"];
+  for (const role of known) {
+    if (name === role || name.startsWith(`${role}-`)) return role;
+  }
+  return name;
+}
+
+function fallbackPhasesByRole(role) {
+  if (role === "leader" || role === "orchestrator") return ["CONTEXTUALIZING"];
+  if (role === "analyst" || role === "researcher" || role === "security-auditor") return ["ANALYZING"];
+  if (role === "architect") return ["PLANNING"];
+  if (role === "builder" || role === "deployer") return ["EXECUTING"];
+  if (role === "reviewer") return ["REVIEWING"];
+  return [];
+}
+
+function memberPhases(member) {
+  const fromMember = Array.isArray(member?.phases)
+    ? member.phases.map((v) => String(v).toUpperCase())
+    : [];
+  if (fromMember.length > 0) return fromMember;
+  return fallbackPhasesByRole(member?.role || resolveRole(member?.name || member?.agent || ""));
+}
+
+function memberActiveInPhase(member, phase) {
+  if (!phase) return false;
+  const phases = memberPhases(member);
+  return phases.includes(String(phase).toUpperCase());
+}
+
+function requiredInitialMembers(session) {
+  const next = String(session?.starting_phase_after_context || "ANALYZING").toUpperCase();
+  return (session?.members || []).filter((m) =>
+    m.name === "leader" || m.agent === "leader" || m.agent === "leader-agent" || memberActiveInPhase(m, next)
+  );
+}
+
+function parseTeamContract(session) {
+  const teamName = session?.team;
+  const pluginRoot = session?.pluginRoot;
+  if (!teamName || !pluginRoot) return null;
+
+  const teamPath = join(pluginRoot, "teams", `${teamName}.md`);
+  if (!existsSync(teamPath)) return null;
+
+  let content = "";
+  try {
+    content = readFileSync(teamPath, "utf-8");
+  } catch {
+    return null;
+  }
+
+  const membersMatch = content.match(/## Members\n([\s\S]*?)(?=\n## |$)/);
+  if (!membersMatch) return null;
+
+  const section = membersMatch[1];
+  const memberPattern = /###\s+([^\n]+)\n([\s\S]*?)(?=\n###\s+|\n##\s+|$)/g;
+  const byName = new Map();
+  let m;
+
+  while ((m = memberPattern.exec(section)) !== null) {
+    const memberName = m[1].trim();
+    const block = m[2];
+    const phaseRaw = block.match(/- \*\*Phase\*\*:\s*([^\n]+)/i)?.[1] ?? "";
+    const instruction = block.match(/- \*\*Instructions\*\*:\s*([^\n]+)/i)?.[1] ?? "";
+    const outputPath = instruction.match(/`(\.party\/findings\/[^`]+)`/)?.[1] ?? "";
+
+    byName.set(memberName, {
+      name: memberName,
+      role: resolveRole(memberName),
+      phases: phaseRaw.split(",").map((v) => v.trim().toUpperCase()).filter(Boolean),
+      instruction,
+      outputPath,
+    });
+  }
+
+  return { byName };
+}
 
 let payload;
 try {
@@ -44,8 +125,8 @@ if (toolName === "Write") {
   }
 }
 
-// 1. 오케스트레이션 도구는 항상 허용
-if (ALLOWED_TOOLS.has(toolName)) {
+// 1. 오케스트레이션 도구는 기본 허용 (단, SendMessage는 규약 검사를 위해 예외)
+if (toolName !== "SendMessage" && ALLOWED_TOOLS.has(toolName)) {
   process.exit(0);
 }
 
@@ -69,22 +150,69 @@ const hasLeader = session.members?.some(
   (m) => m.agent === "leader-agent" || m.agent === "leader" || m.name === "leader"
 );
 if (hasLeader) {
-  // 4a. allSpawned 체크: 전원 스폰 전까지는 Agent/TeamCreate만 허용
-  const allSpawned = session.members.every((m) => m.spawned);
-  if (!allSpawned) {
+  // 4a. initial required spawn 체크:
+  // leader + starting_phase_after_context 멤버가 스폰될 때까지 허용 도구만 사용
+  const initialRequired = requiredInitialMembers(session);
+  const missingInitial = initialRequired.filter((m) => !m.spawned);
+  if (missingInitial.length > 0) {
     const SPAWN_ALLOWED = new Set(["Agent", "TeamCreate", "AskUserQuestion", "Read", "Glob", "Grep"]);
     if (!SPAWN_ALLOWED.has(toolName)) {
-      const unspawned = session.members.filter((m) => !m.spawned);
       const result = {
         decision: "block",
         permissionDecision: "deny",
-        message: `[ai-party] Spawn phase: only Agent calls allowed until all members spawned. Unspawned: ${unspawned.map(m => m.agent).join(", ")}. Call Agent to spawn them now.`,
+        message: `[ai-party] Initial lazy-spawn phase: only ${Array.from(SPAWN_ALLOWED).join(", ")} allowed until required members are spawned. Missing: ${missingInitial.map((m) => m.name).join(", ")}.`,
       };
       process.stdout.write(JSON.stringify(result));
       process.exit(2);
     }
   }
-  // 4b. allSpawned 완료 후: Leader architecture이므로 enforcement skip
+
+  // 4b. allSpawned 완료 후: leader delegation 규약 검사
+  if (toolName === "SendMessage") {
+    const type = payload?.tool_input?.type ?? "message";
+    const recipient = payload?.tool_input?.recipient ?? "";
+    const content = payload?.tool_input?.content ?? "";
+    const phase = session.phase ?? "";
+    const contract = parseTeamContract(session);
+    const member = contract?.byName?.get(recipient);
+    const runtimeMember = session.members?.find((m) => m.name === recipient);
+    const isPipelinePhase = !HOST_DIRECT_STATES.has(phase);
+
+    if (isPipelinePhase && type === "message" && recipient !== "leader") {
+      if (runtimeMember && !runtimeMember.spawned) {
+        const result = {
+          decision: "block",
+          permissionDecision: "deny",
+          message: `[ai-party] SendMessage blocked: recipient "${recipient}" is not spawned yet. Spawn it with Agent(subagent_type='ai-party:${runtimeMember.agent}', name='${runtimeMember.name}') before messaging.`,
+        };
+        process.stdout.write(JSON.stringify(result));
+        process.exit(2);
+      }
+    }
+
+    if (isPipelinePhase && type === "message" && member && recipient !== "leader") {
+      if (!member.phases.includes(phase)) {
+        const result = {
+          decision: "block",
+          permissionDecision: "deny",
+          message: `[ai-party] SendMessage blocked: recipient "${recipient}" is assigned to phase [${member.phases.join(", ")}], current phase is ${phase}.`,
+        };
+        process.stdout.write(JSON.stringify(result));
+        process.exit(2);
+      }
+      if (member.outputPath && !content.includes(member.outputPath)) {
+        const result = {
+          decision: "block",
+          permissionDecision: "deny",
+          message: `[ai-party] SendMessage blocked: message to "${recipient}" must include contract output path "${member.outputPath}" from teams/${session.team}.md.`,
+        };
+        process.stdout.write(JSON.stringify(result));
+        process.exit(2);
+      }
+    }
+  }
+
+  // 4c. allSpawned 완료 후: Leader architecture이므로 나머지는 enforcement skip
   process.exit(0);
 }
 

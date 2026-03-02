@@ -255,6 +255,7 @@ reviewer
 | `pre-tool-agent-inject.mjs` | 역할→모델 매핑 추가 (analyst→sonnet, architect→opus 등) + 하위 호환 유지 |
 | `post-team-init.mjs` | teams/*.md 파싱 로직을 역할 기반으로 확장 |
 | `auto-delegate.mjs` | 스폰 시 `subagent_type` 결정 로직 변경 (전원 general-purpose 또는 claude-agent) |
+| `pre-tool-enforce.mjs` | SendMessage 규약 검사 추가 (phase-멤버 일치, teams/*.md의 output path 포함 여부) |
 
 ### Step 5: 상태 머신 확장
 
@@ -267,6 +268,42 @@ reviewer
 - 기존 에이전트 파일(claude-agent.md 등)은 deprecated 마킹만, v1.0.0까지 유지
 - pre-tool-agent-inject.mjs에서 기존 에이전트명도 계속 인식
 - scripts/codex_exec.sh, gemini_exec.sh 유지 (도구 위임용)
+
+### Step 7: 팀 계약 강제 (v0.9.0-rc.4 보강)
+
+- Leader 위임 메시지는 `teams/{team}.md`의 Members 계약(Phase/Instructions/output path)을 그대로 따라야 한다.
+- `auto-delegate.mjs`에서 leader prompt에 계약 준수 규칙을 강제 삽입한다.
+- `pre-tool-enforce.mjs`에서 SendMessage를 검사해:
+  - 현재 phase와 recipient의 팀 계약 phase 불일치 시 차단
+  - 팀 계약 output path 미포함 메시지 차단
+- spawn 단계 안내 문구를 실제 허용 도구 목록과 일치시킨다 (Agent-only 문구 제거).
+- `leader.md`에 canonical artifact gate를 명시한다:
+  - ANALYZING → PLANNING 전에 반드시 `.party/findings/analysis.md`가 존재해야 함
+  - 연구팀처럼 커스텀 분석 파일만 있는 경우 leader가 synthesis `analysis.md`를 생성 후 진행
+- `researcher.md`는 파일명 기본값을 fallback으로만 사용하고, leader/team contract output path를 우선한다.
+
+### Step 8: Phase-aware Lazy Spawn (v0.9.0-rc.5 최적화)
+
+- 기존 eager spawn(leader + worker 전원 선스폰)을 폐기하고, 현재 phase 멤버만 스폰한다.
+- 스폰 정책:
+  - TeamCreate 직후: `leader` + `starting_phase_after_context`에 해당하는 멤버만 스폰
+  - phase 전환 감지 후: 다음 phase 멤버를 on-demand 스폰
+  - 이미 스폰된 멤버는 재스폰 금지 (idempotent)
+- 목적:
+  - 첫 응답 지연(초기 스폰 대기) 단축
+  - 대기 워커 프롬프트 토큰 낭비 제거
+  - 동시 세션 환경(Phase 4 플랫폼)에서 자원 예측성 향상
+- 구현 대상:
+  - `hooks/auto-delegate.mjs`: "전원 스폰" 지시를 "현재 phase 스폰"으로 변경
+  - `hooks/post-tool-verify.mjs` 또는 신규 훅: phase 전환 시 next-phase 멤버 스폰 트리거
+  - `hooks/pre-tool-enforce.mjs`: unspawned 멤버로의 SendMessage 차단 규칙 추가
+- 적용 상태:
+  - [x] `hooks/auto-delegate.mjs` lazy spawn 지시 반영
+  - [x] `hooks/pre-tool-enforce.mjs` initial required spawn + unspawned recipient 차단 반영
+  - [x] `hooks/post-team-init.mjs` 멤버별 `phases` 파싱/세션 저장 반영
+  - [x] `hooks/post-pipeline-state.mjs` phase 전환 시 lazy-spawn required 멤버 안내 반영
+  - [ ] `hooks/post-tool-verify.mjs`는 "전원 스폰 게이트" 제거 + phase 기반 진행 안내로 전환됨 (부분 완료)
+  - [ ] 완전 자동 next-phase 스폰(호스트 Agent 호출 대행)은 미구현 (현재는 안내+강제 조합)
 
 ---
 
@@ -302,6 +339,20 @@ reviewer
 - [ ] model injection 회귀 없음 확인
 - [ ] 도구 위임 (multi-delegate 경유) 테스트
 
+### Phase 3.5-E: 팀 계약 회귀 방지 (v0.9.0-rc.4)
+
+- [ ] leader → worker SendMessage가 teams/*.md Instructions/output path를 그대로 포함하는지 검증
+- [ ] 연구팀(research)에서 `research-primary.md`/`research-secondary.md` 이후 `analysis.md` synthesis 생성 확인
+- [ ] ANALYZING phase에서 architect에게 `review.md`를 지시하면 pre-tool-enforce가 차단하는지 검증
+- [ ] spawn phase Bash 차단 후에도 Read/Grep 기반 session 복구가 동작하는지 검증
+
+### Phase 3.5-F: 성능/토큰 최적화 (v0.9.0-rc.5)
+
+- [ ] eager spawn 대비 lazy spawn A/B 비교 (동일 입력, 동일 팀)
+- [ ] KPI 측정: 첫 유효 응답시간(TTFM), 전체 완료시간, 총 토큰, 스폰 수
+- [ ] 연구팀(research)에서 lazy spawn + analysis.md gate 유지 검증
+- [ ] 다중 세션(2~3개 병렬)에서 지연/에러율 회귀 없음 확인
+
 ---
 
 ## 5. 검증 기준
@@ -316,6 +367,10 @@ reviewer
 | 하위 호환 | 기존 에이전트명도 인식 | deprecated 에이전트로 직접 스폰 |
 | 도구 위임 | Gemini/Codex CLI Bash 경유 | multi-delegate 스킬 테스트 |
 | 상태 전이 | CONTEXTUALIZING 포함 전체 흐름 | bugfix 팀 E2E |
+| 팀 계약 준수 | leader 위임 메시지가 teams/*.md 계약과 1:1 일치 | debug 로그에서 SendMessage content 검증 |
+| phase gate 강제 | `analysis.md` 없이 PLANNING 진입 불가 | research 팀 E2E + hook deny 로그 확인 |
+| 스폰 정책 | phase-aware lazy spawn 동작, 재스폰 없음 | spawn 로그 + session.members.spawned 검증 |
+| 토큰 효율 | eager spawn 대비 총 토큰 감소 | debug usage 비교 |
 
 ### 성능 검증
 
@@ -325,6 +380,9 @@ reviewer
 | validation failed | 0건 | 0건 유지 |
 | model injection | 0건 | 0건 유지 |
 | 에이전트 스폰 성공률 | ~90% | 99%+ |
+| 초기 스폰 수 | leader+전원 worker | leader+현재 phase worker |
+| 첫 응답 지연(TTFM) | baseline | 30%+ 단축 |
+| 총 토큰 사용량 | baseline | 20%+ 절감 |
 
 ### Phase 4 준비도
 

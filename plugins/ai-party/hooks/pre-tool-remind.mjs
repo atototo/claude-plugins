@@ -10,7 +10,24 @@
 import { readFileSync } from "node:fs";
 import { readSession, isPipelineActive } from "../lib/session.mjs";
 import { listTickets } from "../lib/tickets.mjs";
-import { TICKET_STATUSES } from "../lib/constants.mjs";
+import { STATES, TICKET_STATUSES } from "../lib/constants.mjs";
+
+function fallbackPhasesByRole(role) {
+  if (role === "leader" || role === "orchestrator") return [STATES.CONTEXTUALIZING];
+  if (role === "analyst" || role === "researcher" || role === "security-auditor") return [STATES.ANALYZING];
+  if (role === "architect") return [STATES.PLANNING];
+  if (role === "builder" || role === "deployer") return [STATES.EXECUTING];
+  if (role === "reviewer") return [STATES.REVIEWING];
+  return [];
+}
+
+function memberPhases(member) {
+  const fromMember = Array.isArray(member?.phases)
+    ? member.phases.map((v) => String(v).toUpperCase())
+    : [];
+  if (fromMember.length > 0) return fromMember;
+  return fallbackPhasesByRole(member?.role || member?.agent || "");
+}
 
 let payload;
 try {
@@ -44,6 +61,17 @@ if (session.members && Array.isArray(session.members)) {
   if (unspawned.length > 0) {
     parts.push(
       `Unspawned members (${unspawned.length}): ${unspawned.map((m) => `${m.agent}(${m.role})`).join(", ")}`
+    );
+  }
+
+  const phaseMembers = session.members.filter((m) => memberPhases(m).includes(String(session.phase).toUpperCase()));
+  const pendingInPhase = phaseMembers.filter((m) => !m.spawned);
+  if (pendingInPhase.length > 0) {
+    parts.push(
+      `Lazy-spawn required now (${session.phase}): ${pendingInPhase.map((m) => `${m.name}[ai-party:${m.agent}]`).join(", ")}`
+    );
+    parts.push(
+      "Spawn only the required members for the current phase. Do not spawn later-phase workers yet."
     );
   }
 }
