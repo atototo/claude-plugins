@@ -42,7 +42,7 @@ if (!isPipelineActive(session)) {
   process.exit(0);
 }
 
-const riskLevel = classifyToolRisk(toolName);
+const riskLevel = classifyToolRisk(toolName, payload?.tool_input ?? {});
 if (!isAutoApproveRisk(riskLevel)) {
   process.exit(0);
 }

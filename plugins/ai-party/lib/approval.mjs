@@ -15,9 +15,37 @@ const LOW_RISK_TOOLS = new Set([
 const MEDIUM_RISK_TOOLS = new Set(["Write", "Edit", "MultiEdit"]);
 const HIGH_RISK_TOOLS = new Set(["Bash", "TeamDelete"]);
 
-export function classifyToolRisk(toolName) {
+function normalizePathLike(value) {
+  return String(value || "").replace(/\\/g, "/");
+}
+
+function isPartyArtifactPath(filePath) {
+  const p = normalizePathLike(filePath);
+  return (
+    p.includes("/.party/findings/") ||
+    p.includes("/.party/tickets/") ||
+    p.endsWith("/.party/session.json") ||
+    p.startsWith(".party/findings/") ||
+    p.startsWith(".party/tickets/") ||
+    p === ".party/session.json"
+  );
+}
+
+function extractTargetPath(toolName, toolInput = {}) {
+  if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit") {
+    return toolInput?.file_path ?? "";
+  }
+  return "";
+}
+
+export function classifyToolRisk(toolName, toolInput = {}) {
   if (LOW_RISK_TOOLS.has(toolName)) return "LOW";
-  if (MEDIUM_RISK_TOOLS.has(toolName)) return "MEDIUM";
+  if (MEDIUM_RISK_TOOLS.has(toolName)) {
+    // Pipeline artifact/report writes are considered LOW risk.
+    const targetPath = extractTargetPath(toolName, toolInput);
+    if (isPartyArtifactPath(targetPath)) return "LOW";
+    return "MEDIUM";
+  }
   if (HIGH_RISK_TOOLS.has(toolName)) return "HIGH";
   return "MEDIUM";
 }

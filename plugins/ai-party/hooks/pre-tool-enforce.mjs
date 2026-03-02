@@ -108,6 +108,17 @@ function normalizeText(text) {
   return String(text || "").replace(/\s+/g, " ").trim();
 }
 
+function normalizePathLike(value) {
+  return String(value || "").replace(/\\/g, "/");
+}
+
+function isContextArtifactWrite(toolName, toolInput, phase) {
+  if (String(phase || "").toUpperCase() !== "CONTEXTUALIZING") return false;
+  if (!["Write", "Edit", "MultiEdit"].includes(toolName)) return false;
+  const filePath = normalizePathLike(toolInput?.file_path ?? "");
+  return filePath === ".party/findings/context.md" || filePath.endsWith("/.party/findings/context.md");
+}
+
 let payload;
 try {
   const raw = readFileSync("/dev/stdin", "utf-8");
@@ -146,7 +157,7 @@ if (!isPipelineActive(session)) {
 }
 
 // 4. risk-based approval gate
-const riskLevel = classifyToolRisk(toolName);
+const riskLevel = classifyToolRisk(toolName, payload?.tool_input ?? {});
 const approvalMode = resolveApprovalMode(session);
 if (
   approvalMode === APPROVAL_MODES.PLATFORM &&
@@ -194,7 +205,8 @@ if (hasLeader) {
   const missingInitial = initialRequired.filter((m) => !m.spawned);
   if (missingInitial.length > 0) {
     const SPAWN_ALLOWED = new Set(["Agent", "TeamCreate", "AskUserQuestion", "Read", "Glob", "Grep"]);
-    if (!SPAWN_ALLOWED.has(toolName)) {
+    const contextWriteAllowed = isContextArtifactWrite(toolName, payload?.tool_input ?? {}, session.phase);
+    if (!SPAWN_ALLOWED.has(toolName) && !contextWriteAllowed) {
       const result = {
         decision: "block",
         permissionDecision: "deny",
