@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import { readSession, writeSession, isPipelineActive, isSessionValid, isSessionStale } from "../lib/session.mjs";
 import { createTicket, updateTicket } from "../lib/tickets.mjs";
-import { TICKET_STATUSES } from "../lib/constants.mjs";
+import { STATES, TICKET_STATUSES } from "../lib/constants.mjs";
 
 function toObject(value) {
   if (!value) return {};
@@ -46,6 +46,25 @@ function mapTaskStatus(raw) {
   if (["blocked", "waiting", "pending"].includes(v)) return TICKET_STATUSES.BLOCKED;
   if (["todo", "open", "queued", "new"].includes(v)) return TICKET_STATUSES.TODO;
   return null;
+}
+
+function effectiveTicketPhase(session) {
+  if (session?.phase === STATES.PENDING_APPROVAL) {
+    return String(session?.approval_context?.previous_phase || session.phase);
+  }
+  return String(session?.phase || "");
+}
+
+function hasBootstrapFields(toolInput, toolResult) {
+  const title = firstNonEmpty(
+    toolInput.title,
+    toolInput.name,
+    toolInput.summary,
+    toolResult.title,
+    toolResult.name
+  );
+  if (!title) return false;
+  return !/^task\s+\d+$/i.test(title);
 }
 
 let payload;
@@ -88,7 +107,7 @@ try {
     const ticket = createTicket({
       title,
       description,
-      phase: session.phase,
+      phase: effectiveTicketPhase(session),
       assignee,
     });
     if (taskId) {
@@ -103,17 +122,19 @@ try {
     // Some sessions emit TaskUpdate without prior TaskCreate.
     // In that case, bootstrap a ticket from TaskUpdate payload.
     if (!mappedTicketId && taskId) {
+      if (!hasBootstrapFields(toolInput, toolResult)) {
+        process.exit(0);
+      }
       const seeded = createTicket({
         title: firstNonEmpty(
           toolInput.title,
           toolInput.name,
           toolInput.summary,
           toolResult.title,
-          toolResult.name,
-          `Task ${taskId}`
+          toolResult.name
         ),
         description: firstNonEmpty(toolInput.description, toolResult.description),
-        phase: session.phase,
+        phase: effectiveTicketPhase(session),
         assignee: firstNonEmpty(toolInput.assignee, toolResult.assignee, null) || null,
       });
       session.task_ticket_map[String(taskId)] = seeded.id;

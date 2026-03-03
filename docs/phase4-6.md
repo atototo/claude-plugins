@@ -110,6 +110,8 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
   - `context.md` 완성 대기로 전체 워커를 블로킹하지 않음 (현재 phase + immediate next phase 멤버 조기 배정 허용)
   - 승인 정책 모드: `approval_mode=platform` 기본, `cli`는 로컬 디버그 전용
   - risk-based gate: LOW 자동, MEDIUM/HIGH는 플랫폼 승인 후 진행
+  - `PENDING_APPROVAL` 중에는 pending request id + session id를 사용자 입력 채널에 반복 노출하고 `approve <session_id> <request_id>`로 재개
+  - 승인 대기 중 동일 MEDIUM/HIGH 재시도는 신규 요청 생성 없이 기존 pending 요청으로 dedupe
   - TeamDelete는 파이프라인 정리용 LOW 위험군으로 분류 (종료 정리 차단 회귀 방지)
   - 스킬/도구 위임: 기본 허용 (단, phase/contract/approval 정책 위반 시 차단)
   - TaskCreate/TaskUpdate는 활성 세션의 `${RUNTIME_ROOT}/tickets/`로 기록

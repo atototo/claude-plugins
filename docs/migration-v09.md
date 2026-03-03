@@ -393,13 +393,13 @@ reviewer
 
 ### Phase 3.5-H: 승인 브릿지 + 재개 제어 (HIGH Priority)
 
-- [ ] `approval_requested`를 사용자 승인 UI/입력으로 브릿지하는 훅/러너 경로 구현
+- [x] `approval_requested`를 사용자 승인 입력 브릿지로 연결: `UserPromptSubmit`에서 pending 요청+session을 항상 노출하고 `approve <session_id> <request_id>` 입력 유도
 - [x] `UserPromptSubmit` 승인 파서를 라인 단위로 보강 (혼합 입력에서도 `approve/reject/revise` 명령 인식)
-- [ ] 위험 액션 차단 시 즉시 `PENDING_APPROVAL` 전이 (세션/이벤트 동기화)
-- [ ] 승인 대기 중 동일 위험 액션 재시도 루프 차단 (dedupe + cooldown)
+- [x] 위험 액션 차단 시 즉시 `PENDING_APPROVAL` 전이 (세션/이벤트 동기화)
+- [x] 승인 대기 중 동일 위험 액션 재시도 루프 차단 (dedupe + cooldown + 기존 pending 재사용)
 - [x] `${RUNTIME_ROOT}/approvals/*.json` 수정 경로를 LOW로 분류해 승인 처리 재귀 루프 차단
-- [ ] 승인 결정(`approve/reject/revise`) 이벤트를 session/ticket/events에 표준 구조로 기록
-- [ ] `approve` 시 중단된 액션을 1회 재개, `reject` 시 대체 경로(LOW 도구 또는 수정 요청)로 분기
+- [x] 승인 결정(`approve/reject/revise`) 이벤트를 session/events에 표준 구조(`decision_made`, `phase_changed`)로 기록
+- [x] `approve` 시 중단 액션 1회 재개(grant 소비), `reject/revise` 시 대체 경로 안내로 분기
 - [ ] 브릿지 미연결/실패 시 fail-safe: 파이프라인 중단 + 사용자에게 명시적 안내
 - [ ] 팀 공통 적용 검증 (review 전용이 아니라 bugfix/devops/dev-backend/dev-frontend/security/feature/fullstack/research/migration 포함)
 

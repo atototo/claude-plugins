@@ -29,7 +29,7 @@ import {
 } from "../lib/session.mjs";
 import { emit } from "../lib/events.mjs";
 import { classifyToolRisk, resolveApprovalMode, APPROVAL_MODES } from "../lib/approval.mjs";
-import { toolFingerprint, upsertPendingRequest } from "../lib/approval-bridge.mjs";
+import { readApprovalRequest, toolFingerprint, upsertPendingRequest } from "../lib/approval-bridge.mjs";
 
 function resolveRole(name) {
   const known = ["security-auditor", "researcher", "architect", "reviewer", "builder", "analyst", "deployer"];
@@ -70,10 +70,15 @@ function requiredMembersForPhase(session, phase) {
 function allowedContractPhasesForMessage(session, contractPhase) {
   const base = String(contractPhase || "").toUpperCase();
   const allowed = new Set([base]);
-  // Global non-blocking contextualizing: allow early assignment to the immediate next phase.
+  // Global non-blocking assignment: allow current + immediate next phase.
   if (base === STATES.CONTEXTUALIZING) {
     allowed.add(String(session?.starting_phase_after_context || STATES.ANALYZING).toUpperCase());
+    return allowed;
   }
+
+  if (base === STATES.ANALYZING) allowed.add(STATES.PLANNING);
+  if (base === STATES.PLANNING) allowed.add(STATES.EXECUTING);
+  if (base === STATES.EXECUTING) allowed.add(STATES.REVIEWING);
   return allowed;
 }
 
@@ -156,6 +161,37 @@ function isReviewTeamContractLiteAllowed(session, recipient, content, member) {
   const outputPath = resolveRuntimePath(member.outputPath, session);
   // review 팀은 수동 개입이 잦으므로 output path + reviewer recipient를 만족하면 계약 경량 모드 허용
   return text.includes(outputPath);
+}
+
+function extractInstructionKeywords(instruction) {
+  const stop = new Set([
+    "the", "and", "for", "with", "from", "into", "that", "this", "your",
+    "결과를", "저장하라", "주어진", "수행하라", "작성하라", "포함하라",
+    "runtime_root", "party", "sessions", "findings", "tickets", "session",
+  ]);
+  const stripped = normalizeText(instruction)
+    .replace(/`[^`]*`/g, " ")
+    .replace(/\$\{[^}]+\}/g, " ");
+  return stripped
+    .toLowerCase()
+    .split(/[^a-z0-9가-힣_-]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2 && !stop.has(t))
+    .filter((t) => !t.includes("/"))
+    .filter((t) => !t.includes("."))
+    .slice(0, 12);
+}
+
+function hasInstructionKeywordCoverage(content, instruction) {
+  const keywords = extractInstructionKeywords(instruction);
+  if (keywords.length === 0) return false;
+  const normalizedContent = normalizeText(content).toLowerCase();
+  let matched = 0;
+  for (const kw of keywords) {
+    if (normalizedContent.includes(kw)) matched += 1;
+    if (matched >= 2) return true;
+  }
+  return false;
 }
 
 let payload;
@@ -255,6 +291,22 @@ if (
   approvalMode === APPROVAL_MODES.PLATFORM &&
   (riskLevel === "MEDIUM" || riskLevel === "HIGH")
 ) {
+  const pendingRequestId = String(session?.approval_context?.pending_request_id || "").trim();
+  const activePending = pendingRequestId ? readApprovalRequest(pendingRequestId) : null;
+  if (session?.phase === STATES.PENDING_APPROVAL && activePending?.status === "pending") {
+    const result = {
+      decision: "block",
+      permissionDecision: "deny",
+      message: [
+        `[ai-party] ${toolName} is ${riskLevel} risk.`,
+        `[ai-party] Approval request ${pendingRequestId} is already pending.`,
+        `[ai-party] Session: ${session.id}. Enter exactly: approve ${session.id} ${pendingRequestId}`,
+      ].join(" "),
+    };
+    process.stdout.write(JSON.stringify(result));
+    process.exit(2);
+  }
+
   const previousPhase = session?.phase === STATES.PENDING_APPROVAL
     ? (session?.approval_context?.previous_phase || null)
     : (session?.phase || null);
@@ -319,7 +371,8 @@ if (
       pending.coolDownActive
         ? `[ai-party] Approval request ${requestId} is already pending. Retry suppressed (cooldown).`
         : `[ai-party] Approval request created: ${requestId}.`,
-      "[ai-party] User decision required: approve <request_id> | reject <request_id> <reason> | revise <request_id> <comment>.",
+      `[ai-party] Session: ${session.id}. Enter exactly: approve ${session.id} ${requestId}`,
+      "[ai-party] (or: reject <request_id> <reason> | revise <request_id> <comment>)",
     ].join(" "),
   };
   process.stdout.write(JSON.stringify(result));
@@ -407,8 +460,12 @@ if (hasLeader) {
       if (member.instruction) {
         const normalizedInstruction = normalizeText(resolveRuntimePath(member.instruction, session));
         const normalizedContent = normalizeText(content);
+        const expectedOutputPath = resolveRuntimePath(member.outputPath, session);
+        const outputPathIncluded = expectedOutputPath && content.includes(expectedOutputPath);
+        const keywordCovered = hasInstructionKeywordCoverage(content, normalizedInstruction);
         const contractLiteAllowed = isReviewTeamContractLiteAllowed(session, recipient, content, member);
-        if (!normalizedContent.includes(normalizedInstruction) && !contractLiteAllowed) {
+        const semanticContractAllowed = outputPathIncluded && keywordCovered;
+        if (!normalizedContent.includes(normalizedInstruction) && !contractLiteAllowed && !semanticContractAllowed) {
           const result = {
             decision: "block",
             permissionDecision: "deny",
