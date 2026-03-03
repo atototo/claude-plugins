@@ -103,10 +103,11 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 - [ ] 런타임 정책 고정:
   - teammate mode 기본값 `in-process` (tmux/split-pane는 로컬 디버깅 전용)
   - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 환경 표준화
+  - ai-party 자동 위임은 기본 비활성(옵트인): 명시 커맨드(`/party`, `party`, `ai-party`, `팀모드`, `팀생성`)에서만 시작
   - phase-aware lazy spawn (leader + 현재 phase 멤버만 스폰, 다음 phase는 on-demand)
   - CONTEXTUALIZING는 경량 라우팅 단계로 제한 (리더 전수 분석 금지, 워커가 상세 분석 담당)
   - `context.md`는 필수 상세 리포트가 아니라 라우팅 인덱스(범위/핵심 파일/오픈 질문)로 운용
-  - `context.md` 완성 대기로 전체 워커를 블로킹하지 않음 (현재 phase 멤버는 즉시 배정 가능)
+  - `context.md` 완성 대기로 전체 워커를 블로킹하지 않음 (현재 phase + immediate next phase 멤버 조기 배정 허용)
   - 승인 정책 모드: `approval_mode=platform` 기본, `cli`는 로컬 디버그 전용
   - risk-based gate: LOW 자동, MEDIUM/HIGH는 플랫폼 승인 후 진행
   - TeamDelete는 파이프라인 정리용 LOW 위험군으로 분류 (종료 정리 차단 회귀 방지)

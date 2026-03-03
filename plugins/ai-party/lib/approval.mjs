@@ -26,9 +26,11 @@ function isPartyArtifactPath(filePath) {
   return (
     p.includes("/.party/findings/") ||
     p.includes("/.party/tickets/") ||
+    p.includes("/.party/approvals/") ||
     p.endsWith("/.party/session.json") ||
     p.startsWith(".party/findings/") ||
     p.startsWith(".party/tickets/") ||
+    p.startsWith(".party/approvals/") ||
     p === ".party/session.json"
   );
 }

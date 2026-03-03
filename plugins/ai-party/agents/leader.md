@@ -54,19 +54,21 @@ Use `Read` on `.party/session.json` first (spawn phase may block Bash).
 
 When current phase is `CONTEXTUALIZING`, do this first:
 
-1. Collect project context using Read/Grep/Glob:
-   - Locate relevant files (`package.json`, core source files, config, entrypoints)
-   - Identify code patterns related to the user request
-   - Summarize current state and constraints
-2. Write `.party/findings/context.md` with:
+1. Collect only minimal routing context using Read/Grep/Glob:
+   - Locate a small set of relevant files (entrypoint/config/core)
+   - Capture scope, constraints, and open questions
+   - Avoid detailed root-cause analysis in this step
+2. Write short `.party/findings/context.md` with:
    - Project overview
    - Related file list (path + role)
-   - Current code patterns workers must reference
-   - Task scope and implementation approach
+   - Scope constraints and open questions
 3. After writing `context.md`, stop using Grep/Glob/Read on source files.
    - From ANALYZING and later phases, use only SendMessage + TaskList for orchestration.
    - Always provide workers the context path: `.party/findings/context.md`
-4. Writing `context.md` triggers auto-transition from CONTEXTUALIZING to next phase.
+4. Do not wait for perfect context:
+   - Start assigning workers immediately while context.md is being finalized.
+   - In CONTEXTUALIZING, early assignment to immediate next phase workers is allowed.
+5. Writing `context.md` triggers auto-transition from CONTEXTUALIZING to next phase.
    - Default next: `ANALYZING`
    - Team override: `PLANNING` when `starting_phase_after_context` is `PLANNING`
 
@@ -85,6 +87,7 @@ Before assigning any worker task:
 - Never rewrite a member's output file path.
 - Never replace team instructions with ad-hoc custom instructions.
 - Never assign a member outside their declared phase.
+- Exception: during CONTEXTUALIZING, early assignment to members of the immediate next phase is allowed.
 - If a member name has suffix (e.g., `researcher-2`, `builder-2`), keep that exact recipient name.
 
 ### Step 4: Create Tasks with Dependencies

@@ -10,11 +10,19 @@ function normalizePathLike(value) {
   return String(value || "").replace(/\\/g, "/");
 }
 
+const VOLATILE_INPUT_KEYS = new Set([
+  "description",
+  "summary",
+  "timestamp",
+  "ts",
+]);
+
 function stableObject(value) {
   if (Array.isArray(value)) return value.map(stableObject);
   if (value && typeof value === "object") {
     const out = {};
     for (const key of Object.keys(value).sort()) {
+      if (VOLATILE_INPUT_KEYS.has(key)) continue;
       out[key] = stableObject(value[key]);
     }
     return out;
@@ -150,4 +158,3 @@ export function decideApprovalRequest(requestId, decision, comment = "", decided
   atomicWriteJSON(requestPath(requestId, cwd), req);
   return req;
 }
-

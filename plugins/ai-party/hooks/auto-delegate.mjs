@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // auto-delegate.mjs — UserPromptSubmit 훅
-// 역발상: "작업이 아닌 것"만 제외, 나머지는 전부 에이전트 위임 주입
-// Claude Code에 오는 메시지는 대부분 작업 요청이므로 제외 목록만 관리
+// 정책: ai-party는 명시적 커맨드로만 시작한다 (opt-in).
+// 기본 대화/일반 작업에는 절대 개입하지 않는다.
 
 import { readFileSync } from "node:fs";
 
@@ -14,47 +14,34 @@ try {
   process.exit(0);
 }
 
-const userPrompt = (payload?.prompt ?? "").trim();
-const lc = userPrompt.toLowerCase();
-
-// 빈 메시지 무시
-if (!lc) {
+const rawPrompt = String(payload?.prompt ?? "");
+const userPrompt = rawPrompt.trim();
+if (!userPrompt) {
   process.exit(0);
 }
 
-// ── 제외 패턴: 에이전트 위임이 불필요한 것만 걸러낸다 ──
-const SKIP_PATTERNS = [
-  // 인사/잡담 (짧은 대화)
-  /^(안녕|hi|hello|hey|yo|ㅎㅇ|ㅎㅎ|ㅋㅋ|ㄱㅅ|thanks|thank you|thx|고마워|감사)\b/,
-  /^(네|응|ㅇㅇ|ok|okay|sure|yes|ㅇㅋ|알겠어|알았어)\s*[.!]?$/,
-
-  // 단순 질문 (지식/설명 요청 — 코드 생성 아님)
-  /^.{0,15}(뭐야|뭔지|뭐지|알려줘|설명해|가르쳐|어떻게 돼|차이가 뭐)\s*\??$/,
-  /^(what is|what's|how does|explain|tell me about)\b.{0,40}$/,
-
-  // git 직접 처리 (커밋/머지/푸시는 Host가 직접 할 일)
-  /\b(커밋|머지|푸시|commit|merge|push|pull|rebase|cherry-?pick|stash)\b/,
-
-  // 슬래시 커맨드 (다른 플러그인/스킬이 처리)
-  /^\//,
-
-  // 대화 이어가기 (짧은 후속 지시)
-  /^(계속|continue|go on|keep going|ㄱㄱ|고고)\s*[.!]?$/,
-
-  // 승인 브릿지 결정 커맨드 (팀 모드 자동 주입 금지)
-  /^(approve|reject|revise|승인|거절|수정)\b/i,
-
-  // 확인/상태 질문
-  /^(됐어|done|완료|끝|finished)\s*[?]?$/,
-  /^(어떻게 됐어|상태|status|진행|progress)\s*[?]?$/,
+// ── 명시적 시작 커맨드일 때만 팀 모드 주입 ──
+// 예시:
+//   /party <요청>
+//   party <요청>
+//   ai-party <요청>
+//   팀모드 <요청>
+//   팀생성 <요청>
+const TRIGGER_PATTERNS = [
+  /^\/party(?:\b|[:\s-])/i,
+  /^party(?:\b|[:\s-])/i,
+  /^ai-party(?:\b|[:\s-])/i,
+  /^팀모드(?:$|[:\s-])/,
+  /^팀생성(?:$|[:\s-])/,
 ];
-
-const shouldSkip = SKIP_PATTERNS.some((p) => p.test(lc));
-if (shouldSkip) {
+const matchedTrigger = TRIGGER_PATTERNS.find((p) => p.test(userPrompt));
+if (!matchedTrigger) {
   process.exit(0);
 }
 
-// ── 제외되지 않은 모든 메시지 → 팀 모드 위임 주입 ──
+const delegatedRequest = userPrompt.replace(matchedTrigger, "").trim();
+const effectiveRequest = delegatedRequest || userPrompt;
+
 const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || "";
 const teamsPath = pluginRoot ? `${pluginRoot}/teams` : "teams";
 
@@ -78,12 +65,12 @@ const instruction = [
   "6. Agent(leader)를 먼저 스폰하라:",
   "   - Agent(subagent_type='ai-party:leader', team_name=<위 team_name>, name='leader', description='Pipeline orchestration leader', mode='bypassPermissions', model='opus', prompt='<아래 Leader prompt 규칙 참고>')",
   "   - Leader prompt에 반드시 포함할 내용:",
-  "     · 사용자 요청 원문",
+  `     · 사용자 요청 원문: "${effectiveRequest}"`,
   "     · 팀 구성 (역할별 에이전트 목록)",
-  "     · 'CONTEXTUALIZING 단계 수행: (1) Read(.party/session.json)으로 phase 확인 (spawn 단계에서는 Bash cat 금지), (2) Grep/Glob/Read로 최소 범위 인덱스 수집, (3) .party/findings/context.md를 경량 라우팅 인덱스로 작성한다. 상세 분석은 각 워커가 담당한다.'",
-  "     · 'CONTEXTUALIZING에서는 Read/Grep/Glob 중심으로 라우팅만 수행하고, Edit/Write/Bash 및 위험 MCP 도구 호출은 금지한다.'",
+  "     · 'CONTEXTUALIZING 단계 수행: (1) Read(.party/session.json)으로 phase 확인 (spawn 단계에서는 Bash cat 금지), (2) Grep/Glob/Read로 최소 범위 라우팅 인덱스만 수집, (3) .party/findings/context.md를 짧게 작성한다.'",
+  "     · 'CONTEXTUALIZING에서는 선행 상세분석을 금지한다. 즉시 워커 배정을 시작하고, 리더는 분배/오케스트레이션에 집중하라. Edit/Write/Bash 및 위험 MCP 도구 호출은 금지한다.'",
   "     · '선택된 teams/{team}.md의 ## Members 섹션을 Read하고, 각 멤버의 Phase/Instructions를 계약(contract)으로 고정하라. Leader는 이 계약을 요약/재작성/파일명 변경하면 안 된다.'",
-  "     · 'SendMessage 규칙: (a) 현재 phase에 해당하는 멤버에게만 지시, (b) content에 팀 Instructions의 산출물 파일 경로를 그대로 포함, (c) review.md/design.md 등 다른 phase 산출물을 앞당겨 지시 금지.'",
+  "     · 'SendMessage 규칙: (a) 기본은 현재 phase 멤버에게 지시, 단 CONTEXTUALIZING에서는 다음 즉시 phase 멤버 조기 배정 허용, (b) content에 팀 Instructions의 산출물 파일 경로를 그대로 포함, (c) review.md/design.md 등 다른 phase 산출물을 앞당겨 지시 금지.'",
   "     · 'Phase gate 규칙: 다음 phase 지시 전에 canonical artifact 존재를 확인하라. ANALYZING에서는 analysis.md가 있어야 PLANNING 지시 가능하다. 팀 산출물이 커스텀 파일이면 leader가 분석 요약을 synthesis하여 .party/findings/analysis.md를 추가 작성한 뒤 진행하라.'",
   "     · 'context.md 완성 대기 없이도 현재 phase 멤버에게 범위/관점 배정을 시작할 수 있다. 단, 구현 지시는 승인 게이트 통과 후로 제한하라. 미스폰 멤버는 Host가 phase-aware lazy spawn으로 추가한다.'",
   "     · 'Agent 도구를 직접 호출하지 마라.'",

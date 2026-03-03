@@ -24,12 +24,27 @@ if (!session || !isPipelineActive(session) || !isSessionValid(session) || isSess
   process.exit(0);
 }
 
-const m = prompt.match(/^\s*(approve|승인|reject|거절|revise|수정)\b(?:\s+([A-Za-z0-9-]+))?(?:\s+(.+))?\s*$/i);
-if (!m) process.exit(0);
+function extractDecisionCommand(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  // Prefer the latest explicit command line the user typed.
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = String(lines[i] || "").trim();
+    if (!line) continue;
+    const m = line.match(/^(?:[-*>`]+\s*)?(approve|승인|reject|거절|revise|수정)\b(?:\s+([A-Za-z0-9-]+))?(?:\s+(.+))?\s*$/i);
+    if (!m) continue;
+    return {
+      verb: m[1].toLowerCase(),
+      requestIdArg: m[2] || "",
+      comment: String(m[3] || "").trim(),
+    };
+  }
+  return null;
+}
 
-const verb = m[1].toLowerCase();
-const requestIdArg = m[2] || "";
-const comment = String(m[3] || "").trim();
+const command = extractDecisionCommand(prompt);
+if (!command) process.exit(0);
+
+const { verb, requestIdArg, comment } = command;
 
 let decision = null;
 if (verb === "approve" || verb === "승인") decision = "approve";
@@ -115,4 +130,3 @@ process.stdout.write(JSON.stringify({
   },
 }));
 process.exit(0);
-

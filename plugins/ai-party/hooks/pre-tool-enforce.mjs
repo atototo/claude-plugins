@@ -68,6 +68,16 @@ function requiredMembersForPhase(session, phase) {
   return (session?.members || []).filter((m) => memberActiveInPhase(m, target));
 }
 
+function allowedContractPhasesForMessage(session, contractPhase) {
+  const base = String(contractPhase || "").toUpperCase();
+  const allowed = new Set([base]);
+  // Global non-blocking contextualizing: allow early assignment to the immediate next phase.
+  if (base === STATES.CONTEXTUALIZING) {
+    allowed.add(String(session?.starting_phase_after_context || STATES.ANALYZING).toUpperCase());
+  }
+  return allowed;
+}
+
 function parseTeamContract(session) {
   const teamName = session?.team;
   const pluginRoot = session?.pluginRoot;
@@ -357,11 +367,13 @@ if (hasLeader) {
     }
 
     if (isPipelinePhase && type === "message" && member && recipient !== "leader") {
-      if (!member.phases.includes(contractPhase)) {
+      const allowedPhases = allowedContractPhasesForMessage(session, contractPhase);
+      const phaseAllowed = member.phases.some((p) => allowedPhases.has(String(p || "").toUpperCase()));
+      if (!phaseAllowed) {
         const result = {
           decision: "block",
           permissionDecision: "deny",
-          message: `[ai-party] SendMessage blocked: recipient "${recipient}" is assigned to phase [${member.phases.join(", ")}], current phase is ${contractPhase}.`,
+          message: `[ai-party] SendMessage blocked: recipient "${recipient}" is assigned to phase [${member.phases.join(", ")}], allowed now: [${Array.from(allowedPhases).join(", ")}].`,
         };
         process.stdout.write(JSON.stringify(result));
         process.exit(2);

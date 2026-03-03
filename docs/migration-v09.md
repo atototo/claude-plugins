@@ -316,9 +316,21 @@ reviewer
   - 초기 hard-required spawn 계산에서 next-phase 멤버를 제외하고 current-phase 멤버만 강제
   - CONTEXTUALIZING에서는 leader만 required로 간주
   - next-phase 멤버 선스폰은 권고가 아닌 on-demand 정책으로 고정
+  - **전역 정책**: CONTEXTUALIZING에서 immediate next phase 멤버 조기 배정 허용(분배 비차단)
+  - **전역 정책**: leader는 CONTEXTUALIZING에서 경량 라우팅만 수행(선행 상세분석 금지)
 - 기대 효과:
   - leader/worker idle 루프 감소
   - "context 비차단" 원칙과 runtime enforcement 정합성 확보
+
+### Step 8-B: Auto-Delegate Trigger Policy (v0.9.0-rc.12)
+
+- 목표: ai-party가 일반 업무를 방해하지 않도록 기본 동작을 opt-in으로 전환
+- 정책:
+  - `UserPromptSubmit` 자동 주입은 명시 커맨드에서만 활성화
+  - 허용 커맨드: `/party`, `party`, `ai-party`, `팀모드`, `팀생성`
+  - 일반 프롬프트/다른 업무는 ai-party 훅이 개입하지 않음
+- ai-ops 연계:
+  - 추후 플랫폼 티켓 트리거가 붙으면 해당 경로에서만 자동 시작
 
 ### Step 9: Risk-based Approval Bridge (v0.9.0-rc.6 플랫폼 정합성)
 
@@ -379,8 +391,10 @@ reviewer
 ### Phase 3.5-H: 승인 브릿지 + 재개 제어 (HIGH Priority)
 
 - [ ] `approval_requested`를 사용자 승인 UI/입력으로 브릿지하는 훅/러너 경로 구현
+- [x] `UserPromptSubmit` 승인 파서를 라인 단위로 보강 (혼합 입력에서도 `approve/reject/revise` 명령 인식)
 - [ ] 위험 액션 차단 시 즉시 `PENDING_APPROVAL` 전이 (세션/이벤트 동기화)
 - [ ] 승인 대기 중 동일 위험 액션 재시도 루프 차단 (dedupe + cooldown)
+- [x] `.party/approvals/*.json` 수정 경로를 LOW로 분류해 승인 처리 재귀 루프 차단
 - [ ] 승인 결정(`approve/reject/revise`) 이벤트를 session/ticket/events에 표준 구조로 기록
 - [ ] `approve` 시 중단된 액션을 1회 재개, `reject` 시 대체 경로(LOW 도구 또는 수정 요청)로 분기
 - [ ] 브릿지 미연결/실패 시 fail-safe: 파이프라인 중단 + 사용자에게 명시적 안내
