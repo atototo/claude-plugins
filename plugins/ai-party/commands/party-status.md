@@ -11,7 +11,8 @@ allowed-tools: Read, Glob, TaskList
 
 ### Step 1: 세션 확인
 
-`.party/session.json`을 읽는다. 파일이 없으면 "활성 파티 세션이 없습니다"를 표시한다.
+`.party/active-session.json`을 읽어 `session_id`를 확인한 뒤 `${RUNTIME_ROOT}=.party/sessions/{session_id}`를 사용한다.
+`${RUNTIME_ROOT}/session.json`을 읽는다. 파일이 없으면 "활성 파티 세션이 없습니다"를 표시한다.
 
 ### Step 2: 상태 표시
 
@@ -38,7 +39,7 @@ TaskList로 현재 단계별 태스크 상태를 표시한다:
 
 ### Step 3: Finding 진행률
 
-`.party/findings/` 디렉토리의 파일 존재 여부로 진행률을 표시한다:
+`${RUNTIME_ROOT}/findings/` 디렉토리의 파일 존재 여부로 진행률을 표시한다:
 
 ```
 Findings:
@@ -50,4 +51,4 @@ Findings:
 
 ### Step 4: 승인 대기
 
-`.party/approvals/` 에 파일이 있으면 승인 대기 중임을 강조한다.
+`${RUNTIME_ROOT}/approvals/` 에 파일이 있으면 승인 대기 중임을 강조한다.

@@ -1,0 +1,145 @@
+#!/usr/bin/env node
+// post-task-ticket-sync.mjs — PostToolUse(TaskCreate/TaskUpdate) hook
+// Mirrors Claude task operations into .party ticket files.
+//
+// fail-open: parsing/sync errors never block the tool call.
+
+import { readFileSync } from "node:fs";
+import { readSession, writeSession, isPipelineActive, isSessionValid, isSessionStale } from "../lib/session.mjs";
+import { createTicket, updateTicket } from "../lib/tickets.mjs";
+import { TICKET_STATUSES } from "../lib/constants.mjs";
+
+function toObject(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return {};
+  }
+}
+
+function firstNonEmpty(...values) {
+  for (const v of values) {
+    if (v === null || v === undefined) continue;
+    const s = String(v).trim();
+    if (s) return s;
+  }
+  return "";
+}
+
+function extractTaskId(toolInput, toolResult) {
+  const inObj = toObject(toolInput);
+  const outObj = toObject(toolResult);
+  const id = firstNonEmpty(
+    outObj.id, outObj.task_id, outObj.taskId, outObj.task?.id,
+    inObj.id, inObj.task_id, inObj.taskId, inObj.task?.id
+  );
+  return id || "";
+}
+
+function mapTaskStatus(raw) {
+  const v = String(raw || "").toLowerCase();
+  if (!v) return null;
+  if (["done", "completed", "complete", "closed", "success"].includes(v)) return TICKET_STATUSES.DONE;
+  if (["in_progress", "in-progress", "started", "active", "running", "doing"].includes(v)) return TICKET_STATUSES.IN_PROGRESS;
+  if (["blocked", "waiting", "pending"].includes(v)) return TICKET_STATUSES.BLOCKED;
+  if (["todo", "open", "queued", "new"].includes(v)) return TICKET_STATUSES.TODO;
+  return null;
+}
+
+let payload;
+try {
+  const raw = readFileSync("/dev/stdin", "utf-8");
+  payload = JSON.parse(raw);
+} catch {
+  process.exit(0);
+}
+
+const toolName = String(payload?.tool_name || "");
+if (toolName !== "TaskCreate" && toolName !== "TaskUpdate") {
+  process.exit(0);
+}
+
+const session = readSession();
+if (!session || !isPipelineActive(session) || !isSessionValid(session) || isSessionStale(session)) {
+  process.exit(0);
+}
+
+const toolInput = toObject(payload?.tool_input);
+const toolResult = toObject(payload?.tool_result);
+const taskId = extractTaskId(toolInput, toolResult);
+
+session.task_ticket_map = session.task_ticket_map || {};
+
+try {
+  if (toolName === "TaskCreate") {
+    const title = firstNonEmpty(
+      toolInput.title,
+      toolInput.name,
+      toolInput.summary,
+      toolInput.prompt,
+      toolResult.title,
+      toolResult.name,
+      taskId ? `Task ${taskId}` : "Task"
+    );
+    const description = firstNonEmpty(toolInput.description, toolResult.description);
+    const assignee = firstNonEmpty(toolInput.assignee, toolInput.owner, toolResult.assignee, null) || null;
+    const ticket = createTicket({
+      title,
+      description,
+      phase: session.phase,
+      assignee,
+    });
+    if (taskId) {
+      session.task_ticket_map[String(taskId)] = ticket.id;
+      writeSession(session);
+    }
+  }
+
+  if (toolName === "TaskUpdate") {
+    let mappedTicketId = taskId ? session.task_ticket_map[String(taskId)] : null;
+    const directTicketId = firstNonEmpty(toolInput.ticket_id, toolInput.ticketId);
+    // Some sessions emit TaskUpdate without prior TaskCreate.
+    // In that case, bootstrap a ticket from TaskUpdate payload.
+    if (!mappedTicketId && taskId) {
+      const seeded = createTicket({
+        title: firstNonEmpty(
+          toolInput.title,
+          toolInput.name,
+          toolInput.summary,
+          toolResult.title,
+          toolResult.name,
+          `Task ${taskId}`
+        ),
+        description: firstNonEmpty(toolInput.description, toolResult.description),
+        phase: session.phase,
+        assignee: firstNonEmpty(toolInput.assignee, toolResult.assignee, null) || null,
+      });
+      session.task_ticket_map[String(taskId)] = seeded.id;
+      mappedTicketId = seeded.id;
+      writeSession(session);
+    }
+
+    const ticketId = mappedTicketId || (/^TICKET-\d+$/i.test(directTicketId) ? directTicketId : null);
+    if (!ticketId) process.exit(0);
+
+    // Prefer observed result status over requested input status.
+    const status = mapTaskStatus(firstNonEmpty(toolResult.status, toolResult.state, toolInput.status));
+    const updates = {};
+    if (status) updates.status = status;
+
+    const findings = firstNonEmpty(toolInput.findings, toolResult.findings, toolResult.output_path);
+    if (findings) updates.findings = findings;
+    const report = firstNonEmpty(toolInput.report, toolResult.report, toolResult.summary);
+    if (report) updates.report = report;
+
+    if (Object.keys(updates).length > 0) {
+      updateTicket(ticketId, updates);
+    }
+  }
+} catch {
+  process.exit(0);
+}
+
+process.exit(0);

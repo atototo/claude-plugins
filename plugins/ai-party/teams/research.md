@@ -23,15 +23,15 @@ trigger_keywords:
 
 ### researcher
 - **Phase**: analyzing
-- **Instructions**: 주어진 주제의 기술적 측면을 조사하라. 공식 문서, 벤치마크, 사례 연구를 수집하라. 장단점, 제약 사항을 분석하라. 결과를 `.party/findings/research-primary.md`에 저장하라.
+- **Instructions**: 주어진 주제의 기술적 측면을 조사하라. 공식 문서, 벤치마크, 사례 연구를 수집하라. 장단점, 제약 사항을 분석하라. 결과를 `${RUNTIME_ROOT}/findings/research-primary.md`에 저장하라.
 
 ### researcher-2
 - **Phase**: analyzing
-- **Instructions**: 주어진 주제의 대안과 비교 분석을 수행하라. 경쟁 기술, 커뮤니티 동향, 호환성, 마이그레이션 비용을 조사하라. 결과를 `.party/findings/research-secondary.md`에 저장하라.
+- **Instructions**: 주어진 주제의 대안과 비교 분석을 수행하라. 경쟁 기술, 커뮤니티 동향, 호환성, 마이그레이션 비용을 조사하라. 결과를 `${RUNTIME_ROOT}/findings/research-secondary.md`에 저장하라.
 
 ### architect
 - **Phase**: planning
-- **Instructions**: 두 researcher의 조사 결과를 종합하여 기술 평가 보고서를 작성하라. 추천 방향, 리스크 분석, 도입 로드맵을 포함하라. 결과를 `.party/findings/design.md`에 저장하라.
+- **Instructions**: 두 researcher의 조사 결과를 종합하여 기술 평가 보고서를 작성하라. 추천 방향, 리스크 분석, 도입 로드맵을 포함하라. 결과를 `${RUNTIME_ROOT}/findings/design.md`에 저장하라.
 
 ## Workflow
 

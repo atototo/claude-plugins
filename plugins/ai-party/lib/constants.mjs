@@ -64,12 +64,13 @@ export const AGENT_MODEL_MAP = {
 
 // ── Session / artifact paths ──
 export const PARTY_DIR = ".party";
-export const SESSION_FILE = ".party/session.json";
-export const FINDINGS_DIR = ".party/findings";
-export const CONTEXT_ARTIFACT = ".party/findings/context.md";
-export const TICKETS_DIR = ".party/tickets";
-export const APPROVALS_DIR = ".party/approvals";
-export const EVENTS_FILE = ".party/events.ndjson";
+export const SESSIONS_DIR = ".party/sessions";
+export const ACTIVE_SESSION_FILE = ".party/active-session.json";
+export const FINDINGS_DIR = "findings";
+export const CONTEXT_ARTIFACT = "findings/context.md";
+export const TICKETS_DIR = "tickets";
+export const APPROVALS_DIR = "approvals";
+export const EVENTS_FILE = "events.ndjson";
 
 // ── Fix loop limit ──
 export const MAX_FIX_ATTEMPTS = 3;

@@ -1,16 +1,39 @@
-// session.mjs — .party/session.json read/write/status utilities
+// session.mjs — session read/write/status utilities
+//
+// canonical storage: .party/sessions/<sessionId>/session.json
+// active pointer: .party/active-session.json
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { atomicWriteJSON } from "./atomic-write.mjs";
-import { SESSION_FILE, PARTY_DIR, FINDINGS_DIR, STATES } from "./constants.mjs";
+import {
+  PARTY_DIR,
+  STATES,
+  SESSIONS_DIR,
+  ACTIVE_SESSION_FILE,
+} from "./constants.mjs";
 
-/**
- * Read session.json from cwd. Returns null if not found.
- */
-export function readSession(cwd = process.cwd()) {
-  const path = join(cwd, SESSION_FILE);
-  if (!existsSync(path)) return null;
+function activeSessionPath(cwd = process.cwd()) {
+  return join(cwd, ACTIVE_SESSION_FILE);
+}
+
+function sessionsDirPath(cwd = process.cwd()) {
+  return join(cwd, SESSIONS_DIR);
+}
+
+export function sessionDirForId(sessionId, cwd = process.cwd()) {
+  if (!sessionId) return null;
+  return join(sessionsDirPath(cwd), String(sessionId));
+}
+
+export function sessionFileForId(sessionId, cwd = process.cwd()) {
+  const dir = sessionDirForId(sessionId, cwd);
+  if (!dir) return null;
+  return join(dir, "session.json");
+}
+
+function parseJsonFile(path) {
+  if (!path || !existsSync(path)) return null;
   try {
     return JSON.parse(readFileSync(path, "utf-8"));
   } catch {
@@ -18,12 +41,108 @@ export function readSession(cwd = process.cwd()) {
   }
 }
 
+function readActiveSessionIdFile(cwd = process.cwd()) {
+  const obj = parseJsonFile(activeSessionPath(cwd));
+  const id = String(obj?.session_id || "").trim();
+  return id || null;
+}
+
+function writeActiveSessionIdFile(sessionId, cwd = process.cwd()) {
+  if (!sessionId) return;
+  mkdirSync(join(cwd, PARTY_DIR), { recursive: true });
+  atomicWriteJSON(activeSessionPath(cwd), {
+    session_id: String(sessionId),
+    updated_at: new Date().toISOString(),
+  });
+}
+
+function listSessionIds(cwd = process.cwd()) {
+  const dir = sessionsDirPath(cwd);
+  if (!existsSync(dir)) return [];
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((ent) => ent.isDirectory())
+      .map((ent) => ent.name)
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function readScopedSession(sessionId, cwd = process.cwd()) {
+  const path = sessionFileForId(sessionId, cwd);
+  return parseJsonFile(path);
+}
+
+export function readActiveSessionId(cwd = process.cwd()) {
+  const envId = String(process.env.AI_PARTY_SESSION_ID || "").trim();
+  if (envId) return envId;
+  return readActiveSessionIdFile(cwd);
+}
+
+export function setActiveSessionId(sessionId, cwd = process.cwd()) {
+  writeActiveSessionIdFile(sessionId, cwd);
+}
+
+export function scopedPathInSession(sessionId, relativePath, cwd = process.cwd()) {
+  const dir = sessionDirForId(sessionId, cwd);
+  if (!dir) return join(cwd, relativePath);
+  return join(dir, relativePath);
+}
+
+export function scopedFindingsDir(cwd = process.cwd(), sessionId = null) {
+  const id = String(sessionId || readActiveSessionId(cwd) || "").trim();
+  if (!id) return join(cwd, PARTY_DIR, "sessions", "unknown", "findings");
+  return scopedPathInSession(id, "findings", cwd);
+}
+
+export function scopedTicketsDir(cwd = process.cwd(), sessionId = null) {
+  const id = String(sessionId || readActiveSessionId(cwd) || "").trim();
+  if (!id) return join(cwd, PARTY_DIR, "sessions", "unknown", "tickets");
+  return scopedPathInSession(id, "tickets", cwd);
+}
+
+/**
+ * Read session.json from cwd. Returns null if not found.
+ */
+export function readSession(cwd = process.cwd(), opts = {}) {
+  const explicitId = String(opts?.sessionId || "").trim();
+  if (explicitId) {
+    const scoped = readScopedSession(explicitId, cwd);
+    if (scoped) return scoped;
+  }
+
+  const activeId = readActiveSessionId(cwd);
+  if (activeId) {
+    const scoped = readScopedSession(activeId, cwd);
+    if (scoped) return scoped;
+  }
+
+  // Strict session isolation: no active pointer means no active session.
+  return null;
+}
+
 /**
  * Write session.json atomically.
  */
-export function writeSession(session, cwd = process.cwd()) {
-  const path = join(cwd, SESSION_FILE);
-  atomicWriteJSON(path, session);
+export function writeSession(session, cwd = process.cwd(), opts = {}) {
+  const sessionId = String(session?.id || "").trim();
+  if (!sessionId) {
+    return;
+  }
+
+  const scopedDir = sessionDirForId(sessionId, cwd);
+  const scopedFile = sessionFileForId(sessionId, cwd);
+  mkdirSync(scopedDir, { recursive: true });
+  mkdirSync(join(scopedDir, "approvals"), { recursive: true });
+  mkdirSync(join(scopedDir, "findings"), { recursive: true });
+  mkdirSync(join(scopedDir, "tickets"), { recursive: true });
+  atomicWriteJSON(scopedFile, session);
+
+  const activate = opts?.activate !== false;
+  if (activate) {
+    writeActiveSessionIdFile(sessionId, cwd);
+  }
 }
 
 /**
@@ -89,11 +208,12 @@ export function isPipelineActive(session) {
  * Get the artifact path expected for a given phase.
  */
 export function artifactForPhase(phase, cwd = process.cwd()) {
+  const findings = scopedFindingsDir(cwd);
   const map = {
-    [STATES.PLANNING]: join(cwd, FINDINGS_DIR, "analysis.md"),
-    [STATES.EXECUTING]: join(cwd, FINDINGS_DIR, "design.md"),
-    [STATES.REVIEWING]: join(cwd, FINDINGS_DIR, "implementation.md"),
-    [STATES.AWAITING_APPROVAL]: join(cwd, FINDINGS_DIR, "review.md"),
+    [STATES.PLANNING]: join(findings, "analysis.md"),
+    [STATES.EXECUTING]: join(findings, "design.md"),
+    [STATES.REVIEWING]: join(findings, "implementation.md"),
+    [STATES.AWAITING_APPROVAL]: join(findings, "review.md"),
   };
   return map[phase] ?? null;
 }

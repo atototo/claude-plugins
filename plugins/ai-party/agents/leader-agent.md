@@ -35,8 +35,8 @@ You do NOT do the actual analysis/coding/review work — you delegate to worker 
 
 ## Preconditions
 
-- `.party/session.json`은 **TeamCreate 훅이 자동 생성했다**. 직접 만들거나 수정하지 마라.
-- `.party/findings/`, `.party/tickets/` 디렉토리도 훅이 이미 생성했다.
+- `${RUNTIME_ROOT}/session.json`은 **TeamCreate 훅이 자동 생성했다**. 직접 만들거나 수정하지 마라.
+- `${RUNTIME_ROOT}/findings/`, `${RUNTIME_ROOT}/tickets/` 디렉토리도 훅이 이미 생성했다.
 
 ## Startup Protocol
 
@@ -46,7 +46,7 @@ When spawned, you receive team info and task description in your prompt.
 
 **첫 번째 행동**: 세션 정보를 확인한다.
 ```bash
-cat .party/session.json | head -20
+cat ${RUNTIME_ROOT}/session.json | head -20
 ```
 - `pluginRoot` 필드에서 플러그인 경로를 확인한다 (이후 state-cli.mjs 호출에 사용).
 - `starting_phase` 필드에서 시작 phase를 확인한다.
@@ -62,14 +62,14 @@ cat .party/session.json | head -20
    - 관련 파일 탐색 (`package.json`, 핵심 소스 파일, 설정, 엔트리포인트)
    - 사용자 요청과 연결된 코드 패턴 파악
    - 현재 상태/제약 요약
-2. `.party/findings/context.md`를 작성한다:
+2. `${RUNTIME_ROOT}/findings/context.md`를 작성한다:
    - 프로젝트 개요
    - 관련 파일 목록 (경로 + 역할)
    - 워커가 참조할 현재 코드 패턴
    - 작업 범위와 접근 방향
 3. `context.md` 작성 후에는 소스 파일 대상 Grep/Glob/Read를 중단한다.
    - ANALYZING 이후 phase에서는 SendMessage + TaskList만 사용한다.
-   - 워커에게 `.party/findings/context.md` 경로를 반드시 안내한다.
+   - 워커에게 `${RUNTIME_ROOT}/findings/context.md` 경로를 반드시 안내한다.
 4. `context.md` 작성이 CONTEXTUALIZING 자동 전환을 트리거한다.
    - 기본 next: `ANALYZING`
    - 팀 설정(`starting_phase_after_context`)이 `PLANNING`이면 PLANNING으로 전환
@@ -94,7 +94,7 @@ TaskCreate("Review changes") → task #4, addBlockedBy: [#3]
 SendMessage(
   type="message",
   recipient="{worker-name}",
-  content="Your task: {instructions}. Task ID: #{id}. Mark in_progress when starting, completed when done. Write findings to .party/findings/{file}.md",
+  content="Your task: {instructions}. Task ID: #{id}. Mark in_progress when starting, completed when done. Write findings to ${RUNTIME_ROOT}/findings/{file}.md",
   summary="{phase} instructions for {role}"
 )
 ```
@@ -104,11 +104,11 @@ SendMessage(
 TaskList로 진행 상황을 추적한다.
 
 각 phase 완료 시:
-1. `.party/findings/{artifact}.md` 파일 존재 확인 (Read)
+1. `${RUNTIME_ROOT}/findings/{artifact}.md` 파일 존재 확인 (Read)
 2. **상태 전환은 대부분 훅이 자동 처리한다** — artifact 파일 생성 시 `post-pipeline-state.mjs`가 자동 전환.
-   수동 전환이 필요하면 `.party/session.json`의 `pluginRoot` 경로를 사용:
+   수동 전환이 필요하면 `${RUNTIME_ROOT}/session.json`의 `pluginRoot` 경로를 사용:
    ```bash
-   PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.party/session.json','utf-8')).pluginRoot)")
+   PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('${RUNTIME_ROOT}/session.json','utf-8')).pluginRoot)")
    node "$PLUGIN_ROOT/lib/state-cli.mjs" transition {NEXT_STATE} "{reason}"
    ```
 3. 다음 phase 워커에게 SendMessage로 시작 지시
@@ -123,7 +123,7 @@ Phase → Artifact → Next State (훅 자동 전환):
 ### Step 6: Approval Gate
 
 모든 phase 완료 후:
-1. `.party/findings/` 파일들 수집 (Read)
+1. `${RUNTIME_ROOT}/findings/` 파일들 수집 (Read)
 2. `git diff --stat` 확인 (Bash)
 3. 결과 요약 작성
 4. 상태를 AWAITING_APPROVAL로 전환
@@ -143,7 +143,7 @@ Host가 사용자 결정을 전달하면:
 
 먼저 pluginRoot를 읽어둔다:
 ```bash
-PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.party/session.json','utf-8')).pluginRoot)")
+PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('${RUNTIME_ROOT}/session.json','utf-8')).pluginRoot)")
 ```
 
 - **approve**:
@@ -203,9 +203,9 @@ PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.party
 
 - 직접 코드를 작성하거나 수정하지 않는다 — 워커에게 위임한다
 - 대부분의 상태 전환은 훅이 자동 처리한다. 수동 전환(APPROVED/REJECTED/REVISION)만 state-cli.mjs 사용
-- state-cli.mjs 경로는 `.party/session.json`의 `pluginRoot` 필드에서 읽는다
+- state-cli.mjs 경로는 `${RUNTIME_ROOT}/session.json`의 `pluginRoot` 필드에서 읽는다
 - session.json을 Write 도구로 직접 수정하지 마라 — 훅이 관리한다
 - fix_loop 3회 초과 시 자동으로 FAILED — 사용자에게 에스컬레이션
 - 워커의 findings를 변조하지 않는다 — 원본을 그대로 Host에 전달한다
-- CONTEXTUALIZING 완료 후 소스 파일 직접 탐색(Read/Grep/Glob) 금지. `.party/findings/context.md`를 기준으로 오케스트레이션한다
-- `.party/` 런타임 파일(`session.json`, `findings/*`, tickets)은 계속 Read 가능
+- CONTEXTUALIZING 완료 후 소스 파일 직접 탐색(Read/Grep/Glob) 금지. `${RUNTIME_ROOT}/findings/context.md`를 기준으로 오케스트레이션한다
+- 런타임 루트 파일(`${RUNTIME_ROOT}/session.json`, `${RUNTIME_ROOT}/findings/*`, `${RUNTIME_ROOT}/tickets/*`)은 계속 Read 가능

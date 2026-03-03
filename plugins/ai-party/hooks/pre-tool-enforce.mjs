@@ -17,7 +17,6 @@ import {
   ALLOWED_TOOLS,
   BLOCKED_TOOLS,
   HOST_DIRECT_STATES,
-  SESSION_FILE,
   STATES,
   EVENT_TYPES,
 } from "../lib/constants.mjs";
@@ -106,7 +105,7 @@ function parseTeamContract(session) {
     const block = m[2];
     const phaseRaw = block.match(/- \*\*Phase\*\*:\s*([^\n]+)/i)?.[1] ?? "";
     const instruction = block.match(/- \*\*Instructions\*\*:\s*([^\n]+)/i)?.[1] ?? "";
-    const outputCandidates = [...instruction.matchAll(/`(\.party\/findings\/[^`]+)`/g)].map((v) => v[1]);
+    const outputCandidates = [...instruction.matchAll(/`([^`]*findings\/[^`]+)`/g)].map((v) => v[1]);
     const outputPath = outputCandidates.length > 0 ? outputCandidates[outputCandidates.length - 1] : "";
 
     byName.set(memberName, {
@@ -129,11 +128,24 @@ function normalizePathLike(value) {
   return String(value || "").replace(/\\/g, "/");
 }
 
-function isContextArtifactWrite(toolName, toolInput, phase) {
+function runtimeRoot(session) {
+  return normalizePathLike(session?.runtime_root || (session?.id ? `.party/sessions/${session.id}` : ""));
+}
+
+function resolveRuntimePath(pathLike, session) {
+  const raw = String(pathLike || "");
+  const rr = runtimeRoot(session);
+  if (!raw) return raw;
+  return raw.replaceAll("${RUNTIME_ROOT}", rr);
+}
+
+function isContextArtifactWrite(toolName, toolInput, phase, session) {
   if (String(phase || "").toUpperCase() !== "CONTEXTUALIZING") return false;
   if (!["Write", "Edit", "MultiEdit"].includes(toolName)) return false;
   const filePath = normalizePathLike(toolInput?.file_path ?? "");
-  return filePath === ".party/findings/context.md" || filePath.endsWith("/.party/findings/context.md");
+  const rr = runtimeRoot(session || {});
+  const target = rr ? `${rr}/findings/context.md` : "";
+  return target && (filePath === target || filePath.endsWith(`/${target}`));
 }
 
 function isReviewTeamContractLiteAllowed(session, recipient, content, member) {
@@ -141,8 +153,9 @@ function isReviewTeamContractLiteAllowed(session, recipient, content, member) {
   if (!String(recipient || "").startsWith("reviewer-")) return false;
   if (!member?.outputPath) return false;
   const text = String(content || "");
+  const outputPath = resolveRuntimePath(member.outputPath, session);
   // review 팀은 수동 개입이 잦으므로 output path + reviewer recipient를 만족하면 계약 경량 모드 허용
-  return text.includes(member.outputPath);
+  return text.includes(outputPath);
 }
 
 let payload;
@@ -156,14 +169,17 @@ try {
 const toolName = payload?.tool_name ?? "";
 const toolInput = payload?.tool_input ?? {};
 
-// 0. session.json 직접 Write 차단 (훅이 관리하므로 파이프라인 상태 무관하게 항상 보호)
-if (toolName === "Write") {
-  const filePath = payload?.tool_input?.file_path ?? "";
-  if (filePath.includes(".party/session.json") || filePath.endsWith(SESSION_FILE)) {
+// 0. session store 직접 수정 차단 (훅이 관리하므로 파이프라인 상태 무관하게 항상 보호)
+if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit") {
+  const filePath = normalizePathLike(payload?.tool_input?.file_path ?? "");
+  const isSessionStoreWrite =
+    filePath.includes(".party/active-session.json") ||
+    /\.party\/sessions\/[^/]+\/session\.json$/i.test(filePath);
+  if (isSessionStoreWrite) {
     const result = {
       decision: "block",
       permissionDecision: "deny",
-      message: "[ai-party] .party/session.json is managed by hooks. Do not write directly. Use session-cli.mjs or the hook system.",
+      message: "[ai-party] session store is managed by hooks (.party/active-session.json, .party/sessions/*/session.json). Do not write directly.",
     };
     process.stdout.write(JSON.stringify(result));
     process.exit(2);
@@ -328,7 +344,7 @@ if (hasLeader) {
   const missingInitial = initialRequired.filter((m) => !m.spawned);
   if (missingInitial.length > 0) {
     const SPAWN_ALLOWED = new Set(["Agent", "TeamCreate", "AskUserQuestion", "Read", "Glob", "Grep"]);
-    const contextWriteAllowed = isContextArtifactWrite(toolName, payload?.tool_input ?? {}, session.phase);
+    const contextWriteAllowed = isContextArtifactWrite(toolName, payload?.tool_input ?? {}, session.phase, session);
     if (!SPAWN_ALLOWED.has(toolName) && !contextWriteAllowed) {
       const result = {
         decision: "block",
@@ -378,17 +394,18 @@ if (hasLeader) {
         process.stdout.write(JSON.stringify(result));
         process.exit(2);
       }
-      if (member.outputPath && !content.includes(member.outputPath)) {
+      const expectedOutputPath = resolveRuntimePath(member.outputPath, session);
+      if (expectedOutputPath && !content.includes(expectedOutputPath)) {
         const result = {
           decision: "block",
           permissionDecision: "deny",
-          message: `[ai-party] SendMessage blocked: message to "${recipient}" must include contract output path "${member.outputPath}" from teams/${session.team}.md.`,
+          message: `[ai-party] SendMessage blocked: message to "${recipient}" must include contract output path "${expectedOutputPath}" from teams/${session.team}.md.`,
         };
         process.stdout.write(JSON.stringify(result));
         process.exit(2);
       }
       if (member.instruction) {
-        const normalizedInstruction = normalizeText(member.instruction);
+        const normalizedInstruction = normalizeText(resolveRuntimePath(member.instruction, session));
         const normalizedContent = normalizeText(content);
         const contractLiteAllowed = isReviewTeamContractLiteAllowed(session, recipient, content, member);
         if (!normalizedContent.includes(normalizedInstruction) && !contractLiteAllowed) {

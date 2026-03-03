@@ -33,8 +33,8 @@ You do NOT do the actual analysis/coding/review work — you delegate to worker 
 
 ## Preconditions
 
-- `.party/session.json` is **auto-created by the TeamCreate hook**. Do not create or modify it directly.
-- `.party/findings/`, `.party/tickets/` directories are also created by the hook.
+- `${RUNTIME_ROOT}/session.json` is **auto-created by the TeamCreate hook**. Do not create or modify it directly.
+- `${RUNTIME_ROOT}/findings/`, `${RUNTIME_ROOT}/tickets/` directories are also created by the hook.
 
 ## Startup Protocol
 
@@ -43,7 +43,7 @@ When spawned, you receive team info and task description in your prompt.
 ### Step 1: Read Session & Verify
 
 **First action**: Check session info.
-Use `Read` on `.party/session.json` first (spawn phase may block Bash).
+Use `Read` on `${RUNTIME_ROOT}/session.json` first (spawn phase may block Bash).
 - Read `pluginRoot` field for plugin path (used for state-cli.mjs).
 - Read `starting_phase` for the starting phase.
 - Read `starting_phase_after_context` for the phase after CONTEXTUALIZING.
@@ -58,13 +58,13 @@ When current phase is `CONTEXTUALIZING`, do this first:
    - Locate a small set of relevant files (entrypoint/config/core)
    - Capture scope, constraints, and open questions
    - Avoid detailed root-cause analysis in this step
-2. Write short `.party/findings/context.md` with:
+2. Write short `${RUNTIME_ROOT}/findings/context.md` with:
    - Project overview
    - Related file list (path + role)
    - Scope constraints and open questions
 3. After writing `context.md`, stop using Grep/Glob/Read on source files.
    - From ANALYZING and later phases, use only SendMessage + TaskList for orchestration.
-   - Always provide workers the context path: `.party/findings/context.md`
+   - Always provide workers the context path: `${RUNTIME_ROOT}/findings/context.md`
 4. Do not wait for perfect context:
    - Start assigning workers immediately while context.md is being finalized.
    - In CONTEXTUALIZING, early assignment to immediate next phase workers is allowed.
@@ -80,7 +80,7 @@ Before assigning any worker task:
    - `name`
    - `Phase`
    - `Instructions`
-   - output file path in the instruction (e.g. `.party/findings/design.md`)
+   - output file path in the instruction (e.g. `${RUNTIME_ROOT}/findings/design.md`)
 3. Build a delegation contract map in memory and follow it strictly.
 
 **Hard rules**
@@ -120,11 +120,11 @@ SendMessage(
 Track progress with TaskList.
 
 On each phase completion:
-1. Verify `.party/findings/{artifact}.md` exists (Read)
+1. Verify `${RUNTIME_ROOT}/findings/{artifact}.md` exists (Read)
 2. **State transitions are mostly handled by hooks** — artifact creation triggers `post-pipeline-state.mjs` auto-transition.
-   For manual transitions, use `pluginRoot` from `.party/session.json`:
+   For manual transitions, use `pluginRoot` from `${RUNTIME_ROOT}/session.json`:
    ```bash
-   PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.party/session.json','utf-8')).pluginRoot)")
+   PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('${RUNTIME_ROOT}/session.json','utf-8')).pluginRoot)")
    node "$PLUGIN_ROOT/lib/state-cli.mjs" transition {NEXT_STATE} "{reason}"
    ```
 3. Send start instructions to next phase workers via SendMessage
@@ -141,13 +141,13 @@ Canonical artifact gate:
 - If team uses custom analyzing outputs (e.g., `research-primary.md` + `research-secondary.md`) and `analysis.md` is missing:
   1. Read custom analyzing outputs.
   2. Synthesize a neutral orchestration summary.
-  3. Write `.party/findings/analysis.md`.
+  3. Write `${RUNTIME_ROOT}/findings/analysis.md`.
   4. Then start PLANNING phase workers.
 
 ### Step 7: Approval Gate
 
 After all phases complete:
-1. Collect `.party/findings/` files (Read)
+1. Collect `${RUNTIME_ROOT}/findings/` files (Read)
 2. Check `git diff --stat` (Bash)
 3. Write result summary
 4. Transition to AWAITING_APPROVAL
@@ -167,7 +167,7 @@ When Host relays user decision:
 
 First read pluginRoot:
 ```bash
-PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.party/session.json','utf-8')).pluginRoot)")
+PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('${RUNTIME_ROOT}/session.json','utf-8')).pluginRoot)")
 ```
 
 - **approve**:
@@ -224,9 +224,9 @@ PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.party
 
 - Never write code or modify application files directly — delegate to workers.
 - Most state transitions are handled by hooks. Only manual transitions: APPROVED/REJECTED/REVISION.
-- Read state-cli.mjs path from `.party/session.json` `pluginRoot` field.
+- Read state-cli.mjs path from `${RUNTIME_ROOT}/session.json` `pluginRoot` field.
 - Do not modify session.json with Write tool — hooks manage it.
 - fix_loop exceeding 3 attempts -> auto FAILED -> escalate to user.
 - Do not alter worker findings — relay originals to Host.
-- After CONTEXTUALIZING completes, do not explore source files directly (Read/Grep/Glob). Rely on `.party/findings/context.md`.
-- `.party/` runtime files may still be read as needed (e.g., `session.json`, `findings/*`, tickets).
+- After CONTEXTUALIZING completes, do not explore source files directly (Read/Grep/Glob). Rely on `${RUNTIME_ROOT}/findings/context.md`.
+- Runtime root files may still be read as needed (e.g., `${RUNTIME_ROOT}/session.json`, `${RUNTIME_ROOT}/findings/*`, `${RUNTIME_ROOT}/tickets/*`).

@@ -23,15 +23,15 @@ function normalizePathLike(value) {
 
 function isPartyArtifactPath(filePath) {
   const p = normalizePathLike(filePath);
+  const isScopedPath = p.includes("/.party/sessions/") || p.startsWith(".party/sessions/");
+  const isScopedApproval = /\.party\/sessions\/[^/]+\/approvals\//.test(p);
+  const isScopedSession = /\.party\/sessions\/[^/]+\/session\.json$/.test(p);
+  const isScopedFindings = /\.party\/sessions\/[^/]+\/findings\//.test(p);
+  const isScopedTickets = /\.party\/sessions\/[^/]+\/tickets\//.test(p);
+  const isActiveSession = p.includes("/.party/active-session.json") || p === ".party/active-session.json";
   return (
-    p.includes("/.party/findings/") ||
-    p.includes("/.party/tickets/") ||
-    p.includes("/.party/approvals/") ||
-    p.endsWith("/.party/session.json") ||
-    p.startsWith(".party/findings/") ||
-    p.startsWith(".party/tickets/") ||
-    p.startsWith(".party/approvals/") ||
-    p === ".party/session.json"
+    isActiveSession ||
+    (isScopedPath && (isScopedApproval || isScopedSession || isScopedFindings || isScopedTickets))
   );
 }
 

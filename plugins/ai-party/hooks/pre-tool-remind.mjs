@@ -54,6 +54,9 @@ if (!isPipelineActive(session)) {
 
 const parts = [];
 parts.push(`[ai-party] Pipeline context — phase: ${session.phase}`);
+if (session.runtime_root) {
+  parts.push(`Runtime root: ${session.runtime_root}`);
+}
 
 // Unspawned members
 if (session.members && Array.isArray(session.members)) {

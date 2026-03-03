@@ -192,12 +192,15 @@ teams/                              teams/
 ### .party/ 런타임 변경
 
 ```
-findings/
-  ├── context.md            ← 신규: CONTEXTUALIZING phase의 라우팅 인덱스(경량)
-  ├── analysis.md           ← analyst (was: gemini-agent)
-  ├── design.md             ← architect (was: claude-agent)
-  ├── implementation.md     ← builder (was: codex-agent)
-  └── review.md             ← reviewer (was: claude-agent)
+.party/
+  ├── active-session.json         ← 활성 세션 포인터
+  ├── sessions/
+  │   └── <session-id>/
+    │       ├── session.json        ← 세션별 canonical 저장소
+  │       ├── approvals/            ← 세션별 승인 요청 큐
+  │       ├── events.ndjson         ← 세션별 이벤트 스트림
+  │       ├── findings/             ← 세션별 findings
+  │       └── tickets/              ← 세션별 tickets
 ```
 
 ### 요구사항 변경
@@ -280,7 +283,7 @@ reviewer
   - 팀 계약 output path 미포함 메시지 차단
 - spawn 단계 안내 문구를 실제 허용 도구 목록과 일치시킨다 (Agent-only 문구 제거).
 - `leader.md`에 canonical artifact gate를 명시한다:
-  - ANALYZING → PLANNING 전에 반드시 `.party/findings/analysis.md`가 존재해야 함
+  - ANALYZING → PLANNING 전에 반드시 `${RUNTIME_ROOT}/findings/analysis.md`가 존재해야 함
   - 연구팀처럼 커스텀 분석 파일만 있는 경우 leader가 synthesis `analysis.md`를 생성 후 진행
 - `researcher.md`는 파일명 기본값을 fallback으로만 사용하고, leader/team contract output path를 우선한다.
 
@@ -394,7 +397,7 @@ reviewer
 - [x] `UserPromptSubmit` 승인 파서를 라인 단위로 보강 (혼합 입력에서도 `approve/reject/revise` 명령 인식)
 - [ ] 위험 액션 차단 시 즉시 `PENDING_APPROVAL` 전이 (세션/이벤트 동기화)
 - [ ] 승인 대기 중 동일 위험 액션 재시도 루프 차단 (dedupe + cooldown)
-- [x] `.party/approvals/*.json` 수정 경로를 LOW로 분류해 승인 처리 재귀 루프 차단
+- [x] `${RUNTIME_ROOT}/approvals/*.json` 수정 경로를 LOW로 분류해 승인 처리 재귀 루프 차단
 - [ ] 승인 결정(`approve/reject/revise`) 이벤트를 session/ticket/events에 표준 구조로 기록
 - [ ] `approve` 시 중단된 액션을 1회 재개, `reject` 시 대체 경로(LOW 도구 또는 수정 요청)로 분기
 - [ ] 브릿지 미연결/실패 시 fail-safe: 파이프라인 중단 + 사용자에게 명시적 안내
@@ -477,7 +480,7 @@ reviewer
 | API 키 관리 | Anthropic만 필수 (Codex/Gemini 선택) |
 | 인스턴스 관리 | 단일 타입 (Claude) |
 | 설정 외부화 | 팀/에이전트 설정이 .md 파일로 분리 |
-| 결과 수집 | .party/findings/ 구조 유지 |
+| 결과 수집 | `${RUNTIME_ROOT}/findings/` 구조 기준 |
 | 티켓 정합성 | ticket/task/session/approval/event를 ticket_id 기준으로 추적 가능 |
 | 승인 일관성 | 플랫폼 승인 없이는 MEDIUM/HIGH 액션 실행 불가 |
 

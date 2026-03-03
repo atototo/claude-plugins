@@ -1,6 +1,6 @@
 # Security Audit Checklist
 
-Use this checklist when performing security audits. Write results to `.party/findings/security-audit.md`.
+Use this checklist when performing security audits. Write results to `${RUNTIME_ROOT}/findings/security-audit.md`.
 
 ## Secret Detection
 - [ ] No hardcoded passwords or passphrases

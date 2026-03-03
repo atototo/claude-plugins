@@ -23,15 +23,15 @@ trigger_keywords:
 
 ### architect
 - **Phase**: planning
-- **Instructions**: 컴포넌트 설계, 상태 관리, 레이아웃 구조를 정의하라. 기존 디자인 시스템과 패턴을 따르라. 결과를 `.party/findings/design.md`에 저장하라.
+- **Instructions**: 컴포넌트 설계, 상태 관리, 레이아웃 구조를 정의하라. 기존 디자인 시스템과 패턴을 따르라. 결과를 `${RUNTIME_ROOT}/findings/design.md`에 저장하라.
 
 ### builder
 - **Phase**: executing
-- **Instructions**: 설계에 따라 컴포넌트, 스타일, 테스트를 구현하라. 접근성(WCAG) 기본 준수. 결과를 `.party/findings/implementation.md`에 저장하라.
+- **Instructions**: 설계에 따라 컴포넌트, 스타일, 테스트를 구현하라. 접근성(WCAG) 기본 준수. 결과를 `${RUNTIME_ROOT}/findings/implementation.md`에 저장하라.
 
 ### reviewer
 - **Phase**: reviewing
-- **Instructions**: 기존 코드베이스와의 일관성, 중복 컴포넌트 여부, 번들 사이즈 영향, 접근성을 리뷰하라. 결과를 `.party/findings/review.md`에 저장하라.
+- **Instructions**: 기존 코드베이스와의 일관성, 중복 컴포넌트 여부, 번들 사이즈 영향, 접근성을 리뷰하라. 결과를 `${RUNTIME_ROOT}/findings/review.md`에 저장하라.
 
 ## Workflow
 

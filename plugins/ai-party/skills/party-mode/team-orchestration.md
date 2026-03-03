@@ -42,7 +42,7 @@ node "${CLAUDE_PLUGIN_ROOT}/lib/session-cli.mjs" init \
   --task "{user task description}" \
   --members '[{"name":"leader","agent":"leader-agent","role":"orchestrator"},{"name":"{worker1}","agent":"{agent1}","role":"{role1}"}]'
 ```
-이 명령이 `.party/`, `.party/findings/`, `.party/tickets/` 디렉토리와 `session.json`을 생성한다.
+이 명령이 `${RUNTIME_ROOT}`(세션 루트)와 하위 `findings/`, `tickets/` 디렉토리 및 `session.json`을 생성한다.
 
 ### Step 3: Spawn leader
 ```
@@ -89,7 +89,7 @@ node "${CLAUDE_PLUGIN_ROOT}/lib/state-cli.mjs" transition {STATE} "{reason}"
 ## Approval Gate
 
 When leader reports completion, Host:
-1. Reads `.party/findings/` files
+1. Reads `${RUNTIME_ROOT}/findings/` files
 2. Checks `git diff --stat`
 3. Presents summary to user (see [approval-gate.md](approval-gate.md))
 4. Sends user decision to leader via SendMessage

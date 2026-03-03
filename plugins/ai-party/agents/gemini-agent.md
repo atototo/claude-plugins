@@ -81,10 +81,10 @@ For Documentation:
 When spawned as part of a team (team_name provided):
 1. Use `SendMessage(type="message", recipient="<name>", content="...", summary="...")` to communicate with teammates
 2. Use `TaskUpdate` to mark assigned tasks `in_progress` when starting, `completed` when done
-3. Write your findings to `.party/findings/{your-role}.md` in the project root (e.g., `analysis.md` as analyst)
+3. Write your findings to `${RUNTIME_ROOT}/findings/{your-role}.md` in the project root (e.g., `analysis.md` as analyst)
 4. Share key findings with specific teammates via SendMessage, not broadcast
 5. Follow phase assignments from your spawn instructions
-6. When your phase depends on another agent's output, read their findings from `.party/findings/` before starting
+6. When your phase depends on another agent's output, read their findings from `${RUNTIME_ROOT}/findings/` before starting
 
 **Constraints:**
 - Always use `gemini_exec.sh` wrapper, never call `gemini` CLI directly.

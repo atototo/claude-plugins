@@ -6,8 +6,8 @@
 
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { createSession, writeSession, readSession } from "./session.mjs";
-import { PARTY_DIR, FINDINGS_DIR, TICKETS_DIR } from "./constants.mjs";
+import { createSession, writeSession, readSession, scopedFindingsDir, scopedTicketsDir } from "./session.mjs";
+import { PARTY_DIR } from "./constants.mjs";
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -47,17 +47,17 @@ switch (command) {
     const cwd = process.cwd();
 
     // Create directories deterministically
-    mkdirSync(join(cwd, PARTY_DIR), { recursive: true });
-    mkdirSync(join(cwd, FINDINGS_DIR), { recursive: true });
-    mkdirSync(join(cwd, TICKETS_DIR), { recursive: true });
-
     // Create and write session
     const session = createSession({ team, task, members });
+    session.runtime_root = `.party/sessions/${session.id}`;
     writeSession(session, cwd);
+    mkdirSync(join(cwd, PARTY_DIR), { recursive: true });
+    mkdirSync(scopedFindingsDir(cwd, session.id), { recursive: true });
+    mkdirSync(scopedTicketsDir(cwd, session.id), { recursive: true });
 
     console.log(`[ai-party] Session initialized: ${session.id}`);
     console.log(
-      `[ai-party] Directories: ${PARTY_DIR}/, ${FINDINGS_DIR}/, ${TICKETS_DIR}/`
+      `[ai-party] Runtime root: ${session.runtime_root}`
     );
     console.log(`[ai-party] Members: ${members.length}`);
     process.exit(0);

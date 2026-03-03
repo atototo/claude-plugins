@@ -11,11 +11,12 @@ allowed-tools: Read, Glob
 
 ### Step 1: 세션 확인
 
-`.party/session.json`을 읽는다. 파일이 없으면 "활성 파티 세션이 없습니다"를 표시한다.
+`.party/active-session.json`을 읽어 `session_id`를 확인한 뒤 `${RUNTIME_ROOT}=.party/sessions/{session_id}`를 사용한다.
+`${RUNTIME_ROOT}/session.json`을 읽는다. 파일이 없으면 "활성 파티 세션이 없습니다"를 표시한다.
 
 ### Step 2: 티켓 로드
 
-`.party/tickets/TICKET-*.json` 파일들을 모두 읽는다. 티켓이 없으면 "티켓이 없습니다. 파이프라인이 아직 티켓을 생성하지 않았습니다."를 표시한다.
+`${RUNTIME_ROOT}/tickets/TICKET-*.json` 파일들을 모두 읽는다. 티켓이 없으면 "티켓이 없습니다. 파이프라인이 아직 티켓을 생성하지 않았습니다."를 표시한다.
 
 ### Step 3: 칸반 보드 출력
 

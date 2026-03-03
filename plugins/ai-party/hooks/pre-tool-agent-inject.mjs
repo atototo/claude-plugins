@@ -48,6 +48,8 @@ if (!subagentType.startsWith("ai-party:")) {
 const agentKey = subagentType.replace("ai-party:", "");
 const updatedInput = { ...toolInput };
 let changed = false;
+const session = readSession();
+const runtimeRoot = session?.runtime_root || (session?.id ? `.party/sessions/${session.id}` : ".party/sessions/unknown");
 
 function resolveRoleFromName(name = "") {
   const value = String(name || "");
@@ -120,7 +122,7 @@ const CLI_HINTS = {
     "```",
     "Parse JSON output: check `ok`, `source`, `exit_code`, `thread_id`.",
     "If `ok=false` → retry with `--thread-id <id>` (max 2 retries).",
-    "If `ok=true` → write findings to `.party/findings/implementation.md`.",
+    `If \`ok=true\` → write findings to \`${runtimeRoot}/findings/implementation.md\`.`,
     "---",
     "",
   ].join("\n"),
@@ -138,7 +140,7 @@ const CLI_HINTS = {
     "```",
     "Parse JSON output: check `ok`, `source`, `exit_code`.",
     "If `ok=false` → retry with refined task (max 2 retries).",
-    "If `ok=true` → write findings to `.party/findings/analysis.md`.",
+    `If \`ok=true\` → write findings to \`${runtimeRoot}/findings/analysis.md\`.`,
     "---",
     "",
   ].join("\n"),
@@ -146,8 +148,20 @@ const CLI_HINTS = {
 
 // CLI hint는 deprecated 에이전트에만 적용 (v0.9.0 역할 에이전트는 네이티브 도구 사용)
 const hint = CLI_HINTS[effectiveAgentKey];
+const runtimeHint = [
+  "## RUNTIME ROOT (MANDATORY)",
+  `Use this exact runtime root for all session files: ${runtimeRoot}`,
+  `Session file: ${runtimeRoot}/session.json`,
+  `Findings dir: ${runtimeRoot}/findings`,
+  `Tickets dir: ${runtimeRoot}/tickets`,
+  "Only use paths under the runtime root above.",
+  "",
+].join("\n");
 if (hint) {
-  updatedInput.prompt = hint + (updatedInput.prompt || "");
+  updatedInput.prompt = runtimeHint + hint + (updatedInput.prompt || "");
+  changed = true;
+} else {
+  updatedInput.prompt = runtimeHint + (updatedInput.prompt || "");
   changed = true;
 }
 

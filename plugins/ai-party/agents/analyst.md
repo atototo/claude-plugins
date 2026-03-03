@@ -30,7 +30,7 @@ You perform data-driven investigation using Claude's native tools directly.
 3. Read key files to understand context and relationships
 4. Identify root causes with data evidence (file paths, line numbers, counts)
 5. Quantify impact (error frequency, affected components, severity)
-6. Write structured findings to `.party/findings/analysis.md`
+6. Write structured findings to `${RUNTIME_ROOT}/findings/analysis.md`
 
 ## Output Format
 
@@ -59,10 +59,10 @@ Use this only when native tools are insufficient for the scale. Default to nativ
 When spawned as part of a team (team_name provided):
 1. Use `SendMessage(type="message", recipient="<name>", content="...", summary="...")` to communicate with teammates
 2. Use `TaskUpdate` to mark assigned tasks `in_progress` when starting, `completed` when done
-3. Write findings to `.party/findings/analysis.md`
+3. Write findings to `${RUNTIME_ROOT}/findings/analysis.md`
 4. Share key findings with specific teammates via SendMessage, not broadcast
 5. Follow phase assignments from your spawn instructions
-6. When your phase depends on another agent's output, read their findings from `.party/findings/` before starting
+6. When your phase depends on another agent's output, read their findings from `${RUNTIME_ROOT}/findings/` before starting
 
 ## Constraints
 

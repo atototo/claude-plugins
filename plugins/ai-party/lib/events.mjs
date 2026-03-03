@@ -2,9 +2,9 @@
 // Append-only NDJSON log for dashboard consumption and audit trail.
 
 import { appendFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { EVENTS_FILE, PARTY_DIR } from "./constants.mjs";
-import { readSession } from "./session.mjs";
+import { readSession, scopedPathInSession } from "./session.mjs";
 
 /**
  * Emit a structured event to events.ndjson.
@@ -16,7 +16,6 @@ import { readSession } from "./session.mjs";
  */
 export function emit(type, data, opts = {}) {
   const cwd = opts.cwd ?? process.cwd();
-  const filePath = join(cwd, EVENTS_FILE);
 
   // Ensure .party/ directory exists
   mkdirSync(join(cwd, PARTY_DIR), { recursive: true });
@@ -27,6 +26,9 @@ export function emit(type, data, opts = {}) {
     sessionId = session?.id ?? "unknown";
   }
 
+  const scopedPath = sessionId && sessionId !== "unknown"
+    ? scopedPathInSession(sessionId, "events.ndjson", cwd)
+    : null;
   const event = {
     ts: new Date().toISOString(),
     type,
@@ -34,5 +36,13 @@ export function emit(type, data, opts = {}) {
     data: data ?? {},
   };
 
-  appendFileSync(filePath, JSON.stringify(event) + "\n", "utf-8");
+  const line = JSON.stringify(event) + "\n";
+  if (scopedPath) {
+    mkdirSync(scopedPathInSession(sessionId, ".", cwd), { recursive: true });
+    appendFileSync(scopedPath, line, "utf-8");
+  } else {
+    const unknownPath = scopedPathInSession("unknown", EVENTS_FILE, cwd);
+    mkdirSync(scopedPathInSession("unknown", ".", cwd), { recursive: true });
+    appendFileSync(unknownPath, line, "utf-8");
+  }
 }

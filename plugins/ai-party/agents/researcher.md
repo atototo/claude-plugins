@@ -34,7 +34,7 @@ You investigate technologies, frameworks, and best practices with evidence-based
 4. Fetch and analyze relevant documentation pages (WebFetch)
 5. Compare options with evidence-based criteria
 6. Provide recommendations with source references
-7. Write research report to `.party/findings/research.md`
+7. Write research report to `${RUNTIME_ROOT}/findings/research.md`
 
 ## Output Format
 
@@ -55,9 +55,9 @@ When spawned as part of a team (team_name provided):
 2. Use `SendMessage(type="message", recipient="leader", content="...", summary="...")` to report progress and completion — always to `leader`, not `team-lead`.
 3. Use `TaskUpdate` to mark assigned tasks `in_progress` when starting, `completed` when done
 4. Follow leader/team contract for output path first. If leader explicitly specifies an output file, use it exactly.
-5. If no output path is provided by leader, fallback to `.party/findings/research-{your-name}.md` to avoid collision.
+5. If no output path is provided by leader, fallback to `${RUNTIME_ROOT}/findings/research-{your-name}.md` to avoid collision.
 6. When task is complete, SendMessage to `leader` with summary of findings and the findings file path
-7. When your phase depends on another agent's output, read their findings from `.party/findings/` before starting
+7. When your phase depends on another agent's output, read their findings from `${RUNTIME_ROOT}/findings/` before starting
 
 ## Constraints
 

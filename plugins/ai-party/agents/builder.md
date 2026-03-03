@@ -27,13 +27,13 @@ You implement code changes using Claude's native tools directly.
 
 ## Implementation Process
 
-1. Read architect design from `.party/findings/design.md`
+1. Read architect design from `${RUNTIME_ROOT}/findings/design.md`
 2. Study target files to understand existing patterns and conventions
 3. Implement changes following the design's acceptance criteria
 4. Run existing tests to verify no regressions: `bash -c "<test command>"`
 5. Add tests for new/changed functionality when appropriate
 6. Run `git diff` to verify changes match design expectations
-7. Write implementation report to `.party/findings/implementation.md`
+7. Write implementation report to `${RUNTIME_ROOT}/findings/implementation.md`
 
 ## Output Format
 
@@ -60,10 +60,10 @@ Use this only when sandbox isolation is required. Default to native tools.
 When spawned as part of a team (team_name provided):
 1. Use `SendMessage(type="message", recipient="<name>", content="...", summary="...")` to communicate with teammates
 2. Use `TaskUpdate` to mark assigned tasks `in_progress` when starting, `completed` when done
-3. Write findings to `.party/findings/implementation.md`
+3. Write findings to `${RUNTIME_ROOT}/findings/implementation.md`
 4. Share key findings with specific teammates via SendMessage, not broadcast
 5. Follow phase assignments from your spawn instructions
-6. When your phase depends on another agent's output, read their findings from `.party/findings/` before starting
+6. When your phase depends on another agent's output, read their findings from `${RUNTIME_ROOT}/findings/` before starting
 
 ## Constraints
 

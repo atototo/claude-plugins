@@ -21,23 +21,23 @@ trigger_keywords:
 
 ### analyst
 - **Phase**: analyzing
-- **Instructions**: 기능 요구사항을 분석하라. 기존 코드베이스에서 관련 모듈, 의존성, 영향 범위를 파악하라. 결과를 `.party/findings/analysis.md`에 저장하라.
+- **Instructions**: 기능 요구사항을 분석하라. 기존 코드베이스에서 관련 모듈, 의존성, 영향 범위를 파악하라. 결과를 `${RUNTIME_ROOT}/findings/analysis.md`에 저장하라.
 
 ### architect
 - **Phase**: planning
-- **Instructions**: 분석 결과를 바탕으로 기능 설계를 수행하라. 컴포넌트 구조, 데이터 흐름, API 인터페이스를 정의하라. 구현 범위를 builder와 builder-2에 분배하라. 결과를 `.party/findings/design.md`에 저장하라.
+- **Instructions**: 분석 결과를 바탕으로 기능 설계를 수행하라. 컴포넌트 구조, 데이터 흐름, API 인터페이스를 정의하라. 구현 범위를 builder와 builder-2에 분배하라. 결과를 `${RUNTIME_ROOT}/findings/design.md`에 저장하라.
 
 ### builder
 - **Phase**: executing
-- **Instructions**: Architect가 배분한 범위의 핵심 기능을 구현하라. 단위 테스트를 함께 작성하라. 결과를 `.party/findings/implementation.md`에 저장하라.
+- **Instructions**: Architect가 배분한 범위의 핵심 기능을 구현하라. 단위 테스트를 함께 작성하라. 결과를 `${RUNTIME_ROOT}/findings/implementation.md`에 저장하라.
 
 ### builder-2
 - **Phase**: executing
-- **Instructions**: Architect가 배분한 범위의 보조 기능/통합 코드를 구현하라. 통합 테스트를 함께 작성하라. 결과를 `.party/findings/implementation-2.md`에 저장하라.
+- **Instructions**: Architect가 배분한 범위의 보조 기능/통합 코드를 구현하라. 통합 테스트를 함께 작성하라. 결과를 `${RUNTIME_ROOT}/findings/implementation-2.md`에 저장하라.
 
 ### reviewer
 - **Phase**: reviewing
-- **Instructions**: 두 builder의 변경 사항을 통합 리뷰하라. 설계 준수, 코드 품질, 테스트 커버리지, 보안을 확인하라. 결과를 `.party/findings/review.md`에 저장하라.
+- **Instructions**: 두 builder의 변경 사항을 통합 리뷰하라. 설계 준수, 코드 품질, 테스트 커버리지, 보안을 확인하라. 결과를 `${RUNTIME_ROOT}/findings/review.md`에 저장하라.
 
 ## Workflow
 

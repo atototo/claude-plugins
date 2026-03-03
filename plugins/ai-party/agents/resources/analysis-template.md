@@ -1,6 +1,6 @@
 # Analysis Report Template
 
-Use this template when writing findings to `.party/findings/analysis.md`.
+Use this template when writing findings to `${RUNTIME_ROOT}/findings/analysis.md`.
 
 ## Analysis: [target description]
 

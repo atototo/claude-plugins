@@ -1,6 +1,6 @@
 # Code Review Checklist
 
-Use this checklist when reviewing code changes. Write results to `.party/findings/review.md`.
+Use this checklist when reviewing code changes. Write results to `${RUNTIME_ROOT}/findings/review.md`.
 
 ## Scope & Design Adherence
 - [ ] Changes match architect's design scope (no scope creep)

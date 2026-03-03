@@ -56,7 +56,7 @@ Task(
 {팀 프리셋의 Workflow 섹션 전체}
 
 ## Your Job
-1. Initialize .party/ directory and session.json
+1. Read `.party/active-session.json`, set `${RUNTIME_ROOT}=.party/sessions/{session_id}`, and initialize runtime session state from `${RUNTIME_ROOT}/session.json`
 2. Create tasks per workflow with dependencies (TaskCreate + addBlockedBy)
 3. Send work instructions to each worker via SendMessage
 4. Monitor progress via TaskList
@@ -93,7 +93,7 @@ Task(
 - Use SendMessage(type='message', recipient='<name>', content='...', summary='...') to message teammates
 - Use TaskUpdate(taskId='<id>', status='in_progress') when starting
 - Use TaskUpdate(taskId='<id>', status='completed') when done
-- Write findings to .party/findings/{finding-file}.md
+- Write findings to ${RUNTIME_ROOT}/findings/{finding-file}.md
 
 ## Important
 - Wait for the leader's SendMessage before starting work
@@ -118,10 +118,10 @@ TaskList로 가끔 진행 상황을 확인할 수 있다.
 ### Step 6: 승인 게이트
 
 Leader가 승인 요청을 보내면:
-1. `.party/findings/` 파일들을 읽어 확인
+1. `${RUNTIME_ROOT}/findings/` 파일들을 읽어 확인
 2. `git diff --stat` 확인
 3. 결과 요약을 사용자에게 제시
-4. `.party/approvals/`에 승인 요청 저장
+4. `${RUNTIME_ROOT}/approvals/`에 승인 요청 저장
 
 ```
 ════════════════════════════════════════

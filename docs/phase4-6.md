@@ -103,7 +103,7 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 - [ ] 런타임 정책 고정:
   - teammate mode 기본값 `in-process` (tmux/split-pane는 로컬 디버깅 전용)
   - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` 환경 표준화
-  - ai-party 자동 위임은 기본 비활성(옵트인): 명시 커맨드(`/party`, `party`, `ai-party`, `팀모드`, `팀생성`)에서만 시작
+  - ai-party 자동 위임은 기본 비활성(옵트인): 명시 커맨드(`/party`, `/ai-party:party`, `party`, `ai-party`, `팀모드`, `팀생성`)에서만 시작
   - phase-aware lazy spawn (leader + 현재 phase 멤버만 스폰, 다음 phase는 on-demand)
   - CONTEXTUALIZING는 경량 라우팅 단계로 제한 (리더 전수 분석 금지, 워커가 상세 분석 담당)
   - `context.md`는 필수 상세 리포트가 아니라 라우팅 인덱스(범위/핵심 파일/오픈 질문)로 운용
@@ -112,6 +112,7 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
   - risk-based gate: LOW 자동, MEDIUM/HIGH는 플랫폼 승인 후 진행
   - TeamDelete는 파이프라인 정리용 LOW 위험군으로 분류 (종료 정리 차단 회귀 방지)
   - 스킬/도구 위임: 기본 허용 (단, phase/contract/approval 정책 위반 시 차단)
+  - TaskCreate/TaskUpdate는 활성 세션의 `${RUNTIME_ROOT}/tickets/`로 기록
 
 ### Step 17-A: Mode Resolver (single | party-light | party-full)
 
@@ -141,7 +142,7 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 
 ## Phase 5: 웹 대시보드 + 승인 워크플로우
 
-> ai-party의 tickets.mjs 미러링 연동도 이 Phase에서 활성화.
+> ai-party의 tickets 연동은 세션별 runtime_root 기준으로 운용.
 > → [phase3.md](phase3.md) Step 12 참조
 
 ### Step 19: 웹 대시보드 (읽기)
@@ -168,7 +169,7 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 
 ### Phase 5에서 활성화할 ai-party 기능
 
-- [ ] **tickets.mjs PostToolUse 미러링**: Leader TaskCreate → `.party/tickets/` 자동 생성
+- [ ] **tickets.mjs PostToolUse 동기화**: Leader TaskCreate/TaskUpdate → `${RUNTIME_ROOT}/tickets/` 자동 생성
 - [ ] **`/party-board` 칸반**: tickets 연동 후 터미널 칸반 활성화
 - [ ] **events.ndjson → 대시보드 연동**: 이벤트 스트림 → WebSocket 브릿지
 - [ ] **approval_requested 이벤트 브릿지**: 고위험 도구 실행 전 플랫폼 승인 대기 전환
@@ -192,12 +193,13 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 
 ### Step 24: 동시 실행 + 스케일링
 
-> 현재 `.party/`는 단일 세션. 동시 다중 요청은 이 Phase에서 해결.
+> v0.9.0-rc.13부터 `.party/sessions/<session-id>/` + `active-session.json` 기반의 세션 저장소 분리가 시작됐다.
+> 다만 findings/tickets 실행 아티팩트는 아직 활성 세션 중심이므로 완전 병렬 실행은 이 Phase에서 마무리한다.
 
 - [ ] 여러 프로젝트 요청 병렬 처리
 - [ ] 리소스 관리 (동시 에이전트 수 제한)
 - [ ] 큐 시스템 (우선순위 기반)
-- [ ] `.party/` 세션별 격리 (서브디렉토리 or 별도 worktree)
+- [ ] findings/tickets까지 세션별 완전 격리 (서브디렉토리 or 별도 worktree)
 
 ### Step 25: 추가 팀 프리셋 + 커스터마이징
 

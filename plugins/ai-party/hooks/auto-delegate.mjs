@@ -23,12 +23,14 @@ if (!userPrompt) {
 // ── 명시적 시작 커맨드일 때만 팀 모드 주입 ──
 // 예시:
 //   /party <요청>
+//   /ai-party:party <요청>
 //   party <요청>
 //   ai-party <요청>
 //   팀모드 <요청>
 //   팀생성 <요청>
 const TRIGGER_PATTERNS = [
   /^\/party(?:\b|[:\s-])/i,
+  /^\/ai-party:party(?:\b|[:\s-])/i,
   /^party(?:\b|[:\s-])/i,
   /^ai-party(?:\b|[:\s-])/i,
   /^팀모드(?:$|[:\s-])/,
@@ -61,18 +63,18 @@ const instruction = [
   "2. 가장 높은 매칭 팀 선택 (매칭 없으면 dev-backend 기본)",
   "3. 사용자에게 팀 구성을 간략히 안내",
   "4. TeamCreate(team_name='party-{team}-{timestamp}')",
-  "5. **Session 초기화**: TeamCreate 훅이 session.json과 디렉토리(.party/, findings/, tickets/)를 자동 생성한다. 별도 초기화 불필요.",
+  "5. **Session 초기화**: TeamCreate 훅이 active session pointer + runtime root를 자동 생성한다. 별도 초기화 불필요.",
   "6. Agent(leader)를 먼저 스폰하라:",
   "   - Agent(subagent_type='ai-party:leader', team_name=<위 team_name>, name='leader', description='Pipeline orchestration leader', mode='bypassPermissions', model='opus', prompt='<아래 Leader prompt 규칙 참고>')",
   "   - Leader prompt에 반드시 포함할 내용:",
   `     · 사용자 요청 원문: "${effectiveRequest}"`,
   "     · 팀 구성 (역할별 에이전트 목록)",
-  "     · 'CONTEXTUALIZING 단계 수행: (1) Read(.party/session.json)으로 phase 확인 (spawn 단계에서는 Bash cat 금지), (2) Grep/Glob/Read로 최소 범위 라우팅 인덱스만 수집, (3) .party/findings/context.md를 짧게 작성한다.'",
+  "     · 'CONTEXTUALIZING 단계 수행: (1) Read(.party/active-session.json) 후 runtime_root를 확인하고 Read(${RUNTIME_ROOT}/session.json)으로 phase 확인 (spawn 단계에서는 Bash cat 금지), (2) Grep/Glob/Read로 최소 범위 라우팅 인덱스만 수집, (3) ${RUNTIME_ROOT}/findings/context.md를 짧게 작성한다.'",
   "     · 'CONTEXTUALIZING에서는 선행 상세분석을 금지한다. 즉시 워커 배정을 시작하고, 리더는 분배/오케스트레이션에 집중하라. Edit/Write/Bash 및 위험 MCP 도구 호출은 금지한다.'",
   "     · '선택된 teams/{team}.md의 ## Members 섹션을 Read하고, 각 멤버의 Phase/Instructions를 계약(contract)으로 고정하라. Leader는 이 계약을 요약/재작성/파일명 변경하면 안 된다.'",
   "     · 'SendMessage 규칙: (a) 기본은 현재 phase 멤버에게 지시, 단 CONTEXTUALIZING에서는 다음 즉시 phase 멤버 조기 배정 허용, (b) content에 팀 Instructions의 산출물 파일 경로를 그대로 포함, (c) review.md/design.md 등 다른 phase 산출물을 앞당겨 지시 금지.'",
-  "     · 'Phase gate 규칙: 다음 phase 지시 전에 canonical artifact 존재를 확인하라. ANALYZING에서는 analysis.md가 있어야 PLANNING 지시 가능하다. 팀 산출물이 커스텀 파일이면 leader가 분석 요약을 synthesis하여 .party/findings/analysis.md를 추가 작성한 뒤 진행하라.'",
-  "     · 'context.md 완성 대기 없이도 현재 phase 멤버에게 범위/관점 배정을 시작할 수 있다. 단, 구현 지시는 승인 게이트 통과 후로 제한하라. 미스폰 멤버는 Host가 phase-aware lazy spawn으로 추가한다.'",
+  "     · 'Phase gate 규칙: 다음 phase 지시 전에 canonical artifact 존재를 확인하라. ANALYZING에서는 analysis.md가 있어야 PLANNING 지시 가능하다. 팀 산출물이 커스텀 파일이면 leader가 분석 요약을 synthesis하여 ${RUNTIME_ROOT}/findings/analysis.md를 추가 작성한 뒤 진행하라.'",
+  "     · 'context.md 완성 대기 없이도 현재 phase 멤버에게 범위/관점 배정을 시작할 수 있다. 단, 구현 지시는 승인 게이트 통과 후로 제한하라. 미스폰 멤버는 Host가 phase-aware lazy spawn으로 추가한다. 모든 산출물 경로는 ${RUNTIME_ROOT} 하위만 사용한다.'",
   "     · 'Agent 도구를 직접 호출하지 마라.'",
   "   - Leader prompt에 포함하면 안 되는 내용:",
   "     · 'Spawn X agent' 같은 스폰 지시 (Leader는 에이전트 스폰 권한이 없다)",

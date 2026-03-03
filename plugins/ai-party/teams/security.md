@@ -23,19 +23,19 @@ trigger_keywords:
 
 ### security-auditor
 - **Phase**: analyzing
-- **Instructions**: 코드베이스 전체를 대상으로 보안 취약점을 스캔하라. OWASP Top 10, 인증/인가 결함, 시크릿 노출, 의존성 취약점(CVE)을 식별하라. 결과를 `.party/findings/audit-primary.md`에 저장하라.
+- **Instructions**: 코드베이스 전체를 대상으로 보안 취약점을 스캔하라. OWASP Top 10, 인증/인가 결함, 시크릿 노출, 의존성 취약점(CVE)을 식별하라. 결과를 `${RUNTIME_ROOT}/findings/audit-primary.md`에 저장하라.
 
 ### security-auditor-2
 - **Phase**: analyzing
-- **Instructions**: 인프라 및 설정 관점에서 보안을 감사하라. 환경변수, CORS, CSP, HTTPS, 로깅 정책, 접근 제어를 점검하라. 결과를 `.party/findings/audit-infra.md`에 저장하라.
+- **Instructions**: 인프라 및 설정 관점에서 보안을 감사하라. 환경변수, CORS, CSP, HTTPS, 로깅 정책, 접근 제어를 점검하라. 결과를 `${RUNTIME_ROOT}/findings/audit-infra.md`에 저장하라.
 
 ### analyst
 - **Phase**: analyzing
-- **Instructions**: 두 감사관의 결과를 종합하여 위협 모델을 작성하라. 공격 벡터, 위험도(Critical/High/Medium/Low), 영향 범위를 정리하라. 결과를 `.party/findings/analysis.md`에 저장하라.
+- **Instructions**: 두 감사관의 결과를 종합하여 위협 모델을 작성하라. 공격 벡터, 위험도(Critical/High/Medium/Low), 영향 범위를 정리하라. 결과를 `${RUNTIME_ROOT}/findings/analysis.md`에 저장하라.
 
 ### architect
 - **Phase**: planning
-- **Instructions**: 위협 모델을 바탕으로 수정 계획을 수립하라. 우선순위별 수정 사항, 아키텍처 변경, 보안 강화 전략을 포함하라. 결과를 `.party/findings/design.md`에 저장하라.
+- **Instructions**: 위협 모델을 바탕으로 수정 계획을 수립하라. 우선순위별 수정 사항, 아키텍처 변경, 보안 강화 전략을 포함하라. 결과를 `${RUNTIME_ROOT}/findings/design.md`에 저장하라.
 
 ## Workflow
 

@@ -26,12 +26,12 @@ You design solutions with deep reasoning, evaluate tradeoffs, and define accepta
 
 ## Design Process
 
-1. Read analyst findings from `.party/findings/analysis.md`
+1. Read analyst findings from `${RUNTIME_ROOT}/findings/analysis.md`
 2. Study the relevant codebase to understand existing patterns
 3. Design solution with explicit tradeoffs (at least 2 options evaluated)
 4. Define constraints: scope, affected files, acceptance criteria
 5. Validate against project conventions (naming, patterns, framework usage)
-6. Write design to `.party/findings/design.md`
+6. Write design to `${RUNTIME_ROOT}/findings/design.md`
 
 ## Output Format
 
@@ -62,10 +62,10 @@ See `agents/resources/design-template.md` for detailed template.
 When spawned as part of a team (team_name provided):
 1. Use `SendMessage(type="message", recipient="<name>", content="...", summary="...")` to communicate with teammates
 2. Use `TaskUpdate` to mark assigned tasks `in_progress` when starting, `completed` when done
-3. Write findings to `.party/findings/design.md`
+3. Write findings to `${RUNTIME_ROOT}/findings/design.md`
 4. Share key findings with specific teammates via SendMessage, not broadcast
 5. Follow phase assignments from your spawn instructions
-6. When your phase depends on another agent's output, read their findings from `.party/findings/` before starting
+6. When your phase depends on another agent's output, read their findings from `${RUNTIME_ROOT}/findings/` before starting
 
 ## Constraints
 

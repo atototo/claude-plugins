@@ -26,14 +26,14 @@ You review code changes with deep reasoning and provide structured verdicts.
 
 ## Review Process
 
-1. Read architect design from `.party/findings/design.md` for context
-2. Read implementation report from `.party/findings/implementation.md`
+1. Read architect design from `${RUNTIME_ROOT}/findings/design.md` for context
+2. Read implementation report from `${RUNTIME_ROOT}/findings/implementation.md`
 3. Run `git diff` to see all changes (Bash)
 4. Review each changed file against acceptance criteria
 5. Check: scope adherence, naming conventions, security, test coverage
 6. Run tests to verify they pass: `bash -c "<test command>"`
 7. Provide structured verdict with actionable feedback
-8. Write review to `.party/findings/review.md`
+8. Write review to `${RUNTIME_ROOT}/findings/review.md`
 
 ## Review Checklist
 
@@ -65,10 +65,10 @@ See `agents/resources/review-checklist.md` for detailed checklist.
 When spawned as part of a team (team_name provided):
 1. Use `SendMessage(type="message", recipient="<name>", content="...", summary="...")` to communicate with teammates
 2. Use `TaskUpdate` to mark assigned tasks `in_progress` when starting, `completed` when done
-3. Write findings to `.party/findings/review.md`
+3. Write findings to `${RUNTIME_ROOT}/findings/review.md`
 4. Share key findings with specific teammates via SendMessage, not broadcast
 5. Follow phase assignments from your spawn instructions
-6. When your phase depends on another agent's output, read their findings from `.party/findings/` before starting
+6. When your phase depends on another agent's output, read their findings from `${RUNTIME_ROOT}/findings/` before starting
 
 ## Constraints
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // post-team-init.mjs — PostToolUse(TeamCreate) hook
-// TeamCreate 완료 직후 .party/session.json을 결정론적으로 생성한다.
+// TeamCreate 완료 직후 .party/sessions/<session-id>/session.json을 결정론적으로 생성한다.
 // LLM 프롬프트에 의존하지 않는 확실한 세션 초기화.
 //
 // fail-open: 오류 시 exit(0) — TeamCreate 자체를 막지 않는다.
 
-import { readFileSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createSession, writeSession, readSession, isSessionValid, isSessionStale } from "../lib/session.mjs";
@@ -13,8 +13,6 @@ import { transition } from "../lib/state-machine.mjs";
 import { emit } from "../lib/events.mjs";
 import {
   PARTY_DIR,
-  FINDINGS_DIR,
-  TICKETS_DIR,
   EVENT_TYPES,
   STATES,
   AGENT_MODEL_MAP,
@@ -68,6 +66,10 @@ if (existingSession && isSessionValid(existingSession) && !isSessionStale(existi
     let patched = false;
     if (!existingSession.pluginRoot) {
       existingSession.pluginRoot = join(__dirname, "..");
+      patched = true;
+    }
+    if (!existingSession.runtime_root && existingSession.id) {
+      existingSession.runtime_root = `.party/sessions/${existingSession.id}`;
       patched = true;
     }
     if (!existingSession.starting_phase) {
@@ -265,20 +267,9 @@ if (members.length === 0) {
   members = [{ name: "leader", agent: "leader", role: "orchestrator" }];
 }
 
-// ── 디렉토리 생성 + 이전 아티팩트 정리 ──
+// ── 디렉토리 생성 ──
 try {
   mkdirSync(join(cwd, PARTY_DIR), { recursive: true });
-  mkdirSync(join(cwd, FINDINGS_DIR), { recursive: true });
-  mkdirSync(join(cwd, TICKETS_DIR), { recursive: true });
-  // BugC: 이전 세션 아티팩트 제거 → phantom transition 방지
-  for (const dir of [FINDINGS_DIR, TICKETS_DIR]) {
-    try {
-      const files = readdirSync(join(cwd, dir));
-      for (const f of files) {
-        rmSync(join(cwd, dir, f), { force: true });
-      }
-    } catch { /* ignore */ }
-  }
 } catch {
   // fail-open: 디렉토리 생성 실패해도 계속
 }
@@ -289,6 +280,7 @@ const session = createSession({ team: teamType || teamName, task, members });
 
 // 훅 전용 메타데이터: LLM 프롬프트에 의존하지 않는 결정론적 값
 session.pluginRoot = join(__dirname, ".."); // import.meta.url 기반 절대 경로
+session.runtime_root = `.party/sessions/${session.id}`; // canonical runtime root
 session.starting_phase = startingPhase;     // 파이프라인 시작 phase (CONTEXTUALIZING)
 session.starting_phase_after_context = startingPhaseAfterContext; // CONTEXTUALIZING 완료 후 phase
 session.approval_mode = approvalMode;       // platform(기본) | cli(로컬 디버그)
@@ -336,7 +328,7 @@ const msg = {
     `[ai-party] Session initialized: ${session.id}`,
     `Team: ${session.team} | Members: ${members.length} | Phase: ${bootTransition.ok ? STATES.CONTEXTUALIZING : session.phase}`,
     `Next after CONTEXTUALIZING: ${session.starting_phase_after_context}`,
-    `Directories: ${PARTY_DIR}/, ${FINDINGS_DIR}/, ${TICKETS_DIR}/`,
+    `Runtime root: ${session.runtime_root}`,
     ...(bootTransition.ok ? [] : [`WARNING: Initial transition failed: ${bootTransition.error}`]),
     "",
     "session.json은 훅이 관리합니다. Write 도구로 직접 수정하지 마세요.",

@@ -6,7 +6,7 @@ After all workflow phases (ANALYZING → PLANNING → EXECUTING → REVIEWING) a
 
 ## Collect Results
 
-1. Read all `.party/findings/*.md` files
+1. Read all `${RUNTIME_ROOT}/findings/*.md` files
 2. Run `git diff --stat` for code changes
 3. Compile summary
 
@@ -39,7 +39,7 @@ Review ({reviewer agent}):
 
 ## Save Approval Request
 
-Write to `.party/approvals/{timestamp}.json`:
+Write to `${RUNTIME_ROOT}/approvals/{timestamp}.json`:
 ```json
 {
   "session_id": "{session id}",

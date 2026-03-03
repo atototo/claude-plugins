@@ -1,6 +1,6 @@
 # Design Document Template
 
-Use this template when writing findings to `.party/findings/design.md`.
+Use this template when writing findings to `${RUNTIME_ROOT}/findings/design.md`.
 
 ## Design: [component/feature]
 

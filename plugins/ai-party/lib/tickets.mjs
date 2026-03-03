@@ -1,17 +1,23 @@
 // tickets.mjs — ticket CRUD + dependency management
-// Stores individual ticket files at .party/tickets/TICKET-NNN.json
+// Stores individual ticket files at <runtime_root>/tickets/TICKET-NNN.json
 
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { atomicWriteJSON } from "./atomic-write.mjs";
-import { TICKETS_DIR, TICKET_STATUSES, EVENT_TYPES } from "./constants.mjs";
+import { TICKET_STATUSES, EVENT_TYPES } from "./constants.mjs";
 import { emit } from "./events.mjs";
+import { scopedTicketsDir } from "./session.mjs";
+
+function ticketPath(ticketId, cwd = process.cwd()) {
+  const scoped = scopedTicketsDir(cwd);
+  return join(scoped, `${ticketId}.json`);
+}
 
 /**
  * Get the next ticket number by scanning existing tickets.
  */
 function nextTicketNumber(cwd) {
-  const dir = join(cwd, TICKETS_DIR);
+  const dir = scopedTicketsDir(cwd);
   if (!existsSync(dir)) return 1;
   const files = readdirSync(dir).filter((f) => f.startsWith("TICKET-") && f.endsWith(".json"));
   if (files.length === 0) return 1;
@@ -60,8 +66,7 @@ export function createTicket({ title, description, phase, assignee, dependsOn = 
     report: null,
   };
 
-  const filePath = join(cwd, TICKETS_DIR, `${id}.json`);
-  atomicWriteJSON(filePath, ticket);
+  atomicWriteJSON(ticketPath(id, cwd), ticket);
 
   emit(EVENT_TYPES.TICKET_CREATED, {
     ticketId: id,
@@ -99,8 +104,7 @@ export function updateTicket(ticketId, updates, cwd = process.cwd()) {
     ticket.completedAt = new Date().toISOString();
   }
 
-  const filePath = join(cwd, TICKETS_DIR, `${ticketId}.json`);
-  atomicWriteJSON(filePath, ticket);
+  atomicWriteJSON(ticketPath(ticketId, cwd), ticket);
 
   // Emit update event
   emit(EVENT_TYPES.TICKET_UPDATED, {
@@ -147,7 +151,7 @@ function unblockDependents(completedTicketId, cwd) {
  * @returns {object|null}
  */
 export function getTicket(ticketId, cwd = process.cwd()) {
-  const filePath = join(cwd, TICKETS_DIR, `${ticketId}.json`);
+  const filePath = ticketPath(ticketId, cwd);
   if (!existsSync(filePath)) return null;
   try {
     return JSON.parse(readFileSync(filePath, "utf-8"));
@@ -166,7 +170,7 @@ export function getTicket(ticketId, cwd = process.cwd()) {
  * @returns {object[]}
  */
 export function listTickets(filter = {}, cwd = process.cwd()) {
-  const dir = join(cwd, TICKETS_DIR);
+  const dir = scopedTicketsDir(cwd);
   if (!existsSync(dir)) return [];
 
   const files = readdirSync(dir)

@@ -15,7 +15,7 @@ You are the pipeline leader for the {team} team.
 {workflow section from team preset}
 
 ## Your Job
-1. Initialize .party/ directory and session.json
+1. Read `.party/active-session.json`, set `${RUNTIME_ROOT}=.party/sessions/{session_id}`, and initialize runtime session state from `${RUNTIME_ROOT}/session.json`
 2. Create tasks per workflow with dependencies (TaskCreate + addBlockedBy)
 3. Send work instructions to each worker via SendMessage
 4. Monitor progress via TaskList
@@ -45,7 +45,7 @@ You are {agent-name} acting as {role} in the {team} team.
 - Use SendMessage(type="message", recipient="<name>", content="...", summary="...") to message teammates
 - Use TaskUpdate(taskId="<id>", status="in_progress") when starting
 - Use TaskUpdate(taskId="<id>", status="completed") when done
-- Write findings to .party/findings/{finding-file}.md
+- Write findings to ${RUNTIME_ROOT}/findings/{finding-file}.md
 - Share key findings with specific teammates via SendMessage (not broadcast)
 
 ## Important
@@ -54,7 +54,7 @@ You are {agent-name} acting as {role} in the {team} team.
 - When done, mark your task as completed and notify the leader
 
 ## Finding Output
-Write results to .party/findings/{finding-file}.md:
+Write results to ${RUNTIME_ROOT}/findings/{finding-file}.md:
 - Summary (1-2 lines)
 - Detailed findings with evidence
 - Recommendations or next steps
@@ -82,7 +82,7 @@ You are {agent-name} working on: {task description}
 
 ## Findings File Format
 
-Each findings file (.party/findings/*.md) should follow:
+Each findings file (${RUNTIME_ROOT}/findings/*.md) should follow:
 
 ```markdown
 # {Phase} — {Agent Role}

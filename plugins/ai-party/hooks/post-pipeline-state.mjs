@@ -7,10 +7,10 @@
 // - B5: 전환 전 세션 재로드로 중복 전환 방지
 // - BugC: isPipelineActive + isSessionStale guard 추가
 
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { STATES, FINDINGS_DIR, CONTEXT_ARTIFACT } from "../lib/constants.mjs";
-import { readSession, isPipelineActive, isSessionStale } from "../lib/session.mjs";
+import { STATES } from "../lib/constants.mjs";
+import { readSession, isPipelineActive, isSessionStale, scopedFindingsDir } from "../lib/session.mjs";
 import { transition } from "../lib/state-machine.mjs";
 
 function fallbackPhasesByRole(role) {
@@ -71,6 +71,17 @@ if (!isPipelineActive(session)) process.exit(0);
 if (isSessionStale(session)) process.exit(0);
 
 const cwd = process.cwd();
+const scopedFindings = scopedFindingsDir(cwd);
+mkdirSync(scopedFindings, { recursive: true });
+
+function resolveFindingArtifact(fileName) {
+  return join(scopedFindings, fileName);
+}
+
+function resolveContextArtifact() {
+  return join(scopedFindings, "context.md");
+}
+
 const resolveNextAfterContext = (activeSession) => {
   if (activeSession?.starting_phase_after_context === STATES.PLANNING) {
     return STATES.PLANNING;
@@ -103,27 +114,27 @@ function resolveNextPipelinePhase(activeSession, currentPhase) {
 // B1: ANALYZING 항목 추가
 const PHASE_ARTIFACTS = {
   [STATES.CONTEXTUALIZING]: {
-    artifact: join(cwd, CONTEXT_ARTIFACT),
+    artifact: resolveContextArtifact(),
     next: (activeSession) => resolveNextAfterContext(activeSession),
     label: "Contextualizing complete",
   },
   [STATES.ANALYZING]: {
-    artifact: join(cwd, FINDINGS_DIR, "analysis.md"),
+    artifact: resolveFindingArtifact("analysis.md"),
     next: (activeSession) => resolveNextPipelinePhase(activeSession, STATES.ANALYZING),
     label: "Analysis complete",
   },
   [STATES.PLANNING]: {
-    artifact: join(cwd, FINDINGS_DIR, "design.md"),
+    artifact: resolveFindingArtifact("design.md"),
     next: (activeSession) => resolveNextPipelinePhase(activeSession, STATES.PLANNING),
     label: "Planning complete",
   },
   [STATES.EXECUTING]: {
-    artifact: join(cwd, FINDINGS_DIR, "implementation.md"),
+    artifact: resolveFindingArtifact("implementation.md"),
     next: (activeSession) => resolveNextPipelinePhase(activeSession, STATES.EXECUTING),
     label: "Execution complete",
   },
   [STATES.REVIEWING]: {
-    artifact: join(cwd, FINDINGS_DIR, "review.md"),
+    artifact: resolveFindingArtifact("review.md"),
     next: (activeSession) => resolveNextPipelinePhase(activeSession, STATES.REVIEWING),
     label: "Review complete",
   },

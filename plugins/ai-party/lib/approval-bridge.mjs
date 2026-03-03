@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { atomicWriteJSON } from "./atomic-write.mjs";
-import { APPROVALS_DIR } from "./constants.mjs";
+import { readActiveSessionId, scopedPathInSession } from "./session.mjs";
 
 function normalizePathLike(value) {
   return String(value || "").replace(/\\/g, "/");
@@ -39,20 +39,21 @@ export function toolFingerprint(toolName, toolInput = {}) {
   return createHash("sha1").update(payload).digest("hex");
 }
 
-function approvalsDir(cwd = process.cwd()) {
-  return join(cwd, APPROVALS_DIR);
+function approvalsDir(cwd = process.cwd(), sessionId = null) {
+  const id = String(sessionId || readActiveSessionId(cwd) || "").trim();
+  if (!id) return scopedPathInSession("unknown", "approvals", cwd);
+  return scopedPathInSession(id, "approvals", cwd);
 }
 
-function requestPath(requestId, cwd = process.cwd()) {
-  return join(approvalsDir(cwd), `${requestId}.json`);
+function requestPath(requestId, cwd = process.cwd(), sessionId = null) {
+  return join(approvalsDir(cwd, sessionId), `${requestId}.json`);
 }
 
-function ensureApprovalsDir(cwd = process.cwd()) {
-  mkdirSync(approvalsDir(cwd), { recursive: true });
+function ensureApprovalsDir(cwd = process.cwd(), sessionId = null) {
+  mkdirSync(approvalsDir(cwd, sessionId), { recursive: true });
 }
 
-export function readApprovalRequest(requestId, cwd = process.cwd()) {
-  const filePath = requestPath(requestId, cwd);
+function parseRequestFile(filePath) {
   if (!existsSync(filePath)) return null;
   try {
     return JSON.parse(readFileSync(filePath, "utf-8"));
@@ -61,8 +62,38 @@ export function readApprovalRequest(requestId, cwd = process.cwd()) {
   }
 }
 
-export function listApprovalRequests(cwd = process.cwd()) {
-  const dir = approvalsDir(cwd);
+function allSessionApprovalDirs(cwd = process.cwd()) {
+  const roots = [approvalsDir(cwd)];
+
+  const sessionsRoot = join(cwd, ".party", "sessions");
+  if (existsSync(sessionsRoot)) {
+    try {
+      for (const ent of readdirSync(sessionsRoot, { withFileTypes: true })) {
+        if (!ent.isDirectory()) continue;
+        roots.push(join(sessionsRoot, ent.name, "approvals"));
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return [...new Set(roots)];
+}
+
+export function readApprovalRequest(requestId, cwd = process.cwd()) {
+  const candidates = [requestPath(requestId, cwd)];
+  for (const dir of allSessionApprovalDirs(cwd)) {
+    candidates.push(join(dir, `${requestId}.json`));
+  }
+  for (const filePath of candidates) {
+    const req = parseRequestFile(filePath);
+    if (req) return req;
+  }
+  return null;
+}
+
+export function listApprovalRequests(cwd = process.cwd(), sessionId = null) {
+  const dir = approvalsDir(cwd, sessionId || readActiveSessionId(cwd));
   if (!existsSync(dir)) return [];
   const files = readdirSync(dir)
     .filter((f) => f.endsWith(".json"))
@@ -80,7 +111,7 @@ export function listApprovalRequests(cwd = process.cwd()) {
 
 export function getPendingRequestByFingerprint(fingerprint, sessionId, cwd = process.cwd()) {
   if (!fingerprint) return null;
-  const requests = listApprovalRequests(cwd);
+  const requests = listApprovalRequests(cwd, sessionId);
   return requests.find(
     (r) =>
       r?.status === "pending" &&
@@ -90,7 +121,7 @@ export function getPendingRequestByFingerprint(fingerprint, sessionId, cwd = pro
 }
 
 export function getLatestPendingRequest(sessionId, cwd = process.cwd()) {
-  const requests = listApprovalRequests(cwd)
+  const requests = listApprovalRequests(cwd, sessionId)
     .filter((r) => r?.status === "pending" && (!sessionId || r?.session_id === sessionId))
     .sort((a, b) => String(b?.requested_at || "").localeCompare(String(a?.requested_at || "")));
   return requests[0] || null;
@@ -116,8 +147,8 @@ export function upsertPendingRequest({
     existing.last_seen_at = now;
     existing.retries = Number(existing.retries || 0) + 1;
     existing.cooldown_active = coolDownActive;
-    ensureApprovalsDir(cwd);
-    atomicWriteJSON(requestPath(existing.request_id, cwd), existing);
+    ensureApprovalsDir(cwd, session?.id);
+    atomicWriteJSON(requestPath(existing.request_id, cwd, session?.id), existing);
     return { request: existing, created: false, coolDownActive };
   }
 
@@ -141,8 +172,8 @@ export function upsertPendingRequest({
     decided_at: null,
     decision_comment: null,
   };
-  ensureApprovalsDir(cwd);
-  atomicWriteJSON(requestPath(requestId, cwd), req);
+  ensureApprovalsDir(cwd, session?.id);
+  atomicWriteJSON(requestPath(requestId, cwd, session?.id), req);
   return { request: req, created: true, coolDownActive: false };
 }
 
@@ -154,7 +185,7 @@ export function decideApprovalRequest(requestId, decision, comment = "", decided
   req.decision_comment = String(comment || "");
   req.decided_by = decidedBy;
   req.decided_at = new Date().toISOString();
-  ensureApprovalsDir(cwd);
-  atomicWriteJSON(requestPath(requestId, cwd), req);
+  ensureApprovalsDir(cwd, req.session_id);
+  atomicWriteJSON(requestPath(requestId, cwd, req.session_id), req);
   return req;
 }
