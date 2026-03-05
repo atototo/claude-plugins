@@ -257,11 +257,13 @@ if (!isPipelineActive(session)) {
   process.exit(0);
 }
 
-// Strict approval gate: while pending request exists, user decision must be processed first.
+// Approval gate: while pending request exists, block MEDIUM/HIGH risk tools only.
+// LOW risk tools (findings writes, task updates, read-only) are allowed to continue.
 if (session?.phase === STATES.PENDING_APPROVAL) {
   const pendingRequestId = String(session?.approval_context?.pending_request_id || "").trim();
   const activePending = pendingRequestId ? readApprovalRequest(pendingRequestId) : null;
-  if (activePending?.status === "pending" && !isShutdownControlTool(toolName, toolInput)) {
+  const pendingRisk = classifyToolRisk(toolName, toolInput);
+  if (activePending?.status === "pending" && !isShutdownControlTool(toolName, toolInput) && pendingRisk !== "LOW") {
     const result = {
       decision: "block",
       permissionDecision: "deny",
@@ -271,6 +273,7 @@ if (session?.phase === STATES.PENDING_APPROVAL) {
         `[ai-party] Enter exactly: approve ${session.id} ${pendingRequestId}`,
         `[ai-party] Or: reject ${session.id} ${pendingRequestId} <reason>`,
         `[ai-party] Or: revise ${session.id} ${pendingRequestId} <comment>`,
+        `[ai-party] (LOW risk tools like findings writes and task updates are still allowed)`,
       ].join(" "),
     };
     process.stdout.write(JSON.stringify(result));
