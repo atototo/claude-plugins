@@ -24,22 +24,31 @@
 │         └────────────────┼──────────────────┘            │
 │                    SQLite DB                              │
 │                          │                               │
-│  ┌───────────────────────┼────────────────────────┐      │
-│  │              API 서버 (REST)                     │      │
-│  │  POST /tasks — 작업 요청                        │      │
-│  │  GET /tasks/:id — 상태 조회                     │      │
-│  │  POST /tasks/:id/approve — 승인                 │      │
-│  │  CRUD /projects — 프로젝트 관리                  │      │
-│  └───────────────────────┬────────────────────────┘      │
-│                          │                               │
-│  ┌───────────────────────┼────────────────────────┐      │
+│  ┌──────────────┐  ┌─────┴───────────┐  ┌────────────┐  │
+│  │ MCP Server   │  │   REST API      │  │  Webhook   │  │
+│  │ (AI 전용)    │  │  (사람 전용)     │  │  (외부)    │  │
+│  │              │  │                 │  │            │  │
+│  │ tools:       │  │ /tickets CRUD   │  │ GitHub     │  │
+│  │ - get_       │  │ /projects CRUD  │  │ 모니터링   │  │
+│  │   project_   │  │ /approvals      │  │ cron       │  │
+│  │   context    │  │ /dashboard      │  │            │  │
+│  │ - create_    │  │                 │  │            │  │
+│  │   ticket     │  │                 │  │            │  │
+│  │ - request_   │  │                 │  │            │  │
+│  │   approval   │  │                 │  │            │  │
+│  │ - get_       │  │                 │  │            │  │
+│  │   session_   │  │                 │  │            │  │
+│  │   status     │  │                 │  │            │  │
+│  └──────┬───────┘  └─────────────────┘  └────────────┘  │
+│         │ (MCP Protocol)                                  │
+│  ┌──────┴─────────────────────────────────────────┐      │
 │  │           실행 엔진 (Claude Code + ai-party)     │      │
 │  │                                                │      │
-│  │  SessionStart 훅 → DB에서 프로젝트 정보 자동 로드  │      │
-│  │  /party → 팀 구성 → 파이프라인 → findings → DB    │      │
+│  │  SessionStart 훅 → MCP로 프로젝트 컨텍스트 로드  │      │
+│  │  /party → 팀 구성 → 파이프라인 → findings → DB   │      │
 │  └────────────────────────────────────────────────┘      │
 │                                                          │
-│  접속:  💻 웹 대시보드  │  📱 claude remote-control  │  🔗 Webhook  │
+│  접속: 💻 웹 대시보드(REST)  │  🤖 Claude Code(MCP)  │  🔗 Webhook  │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -49,11 +58,13 @@
 AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 ├── "무엇을 할지" 결정              ├── "어떻게 할지" 실행
 ├── 프로젝트/인증 관리              ├── 에이전트 정의 + 팀 프리셋
-├── 웹 대시보드 + API              ├── 파이프라인 상태 머신
-├── 세션/이력/승인 DB              ├── 3계층 강제 훅
-├── Claude Code 인스턴스 관리       ├── 파일 핸드오프 (.party/)
-└── 사용자 인터페이스              └── 승인 게이트 (risk-based)
-         │                                  ▲
+├── MCP Server (AI 통신)           ├── 파이프라인 상태 머신
+├── REST API (브라우저/외부 전용)    ├── 3계층 강제 훅
+├── 웹 대시보드 + Webhook           ├── 파일 핸드오프 (.party/)
+├── 세션/이력/승인 DB              ├── 승인 게이트 (risk-based)
+├── Claude Code 인스턴스 관리       └── MCP tools 호출 (approval 등)
+└── 사용자 인터페이스
+         │ MCP Protocol                      ▲
          └─── ai-party 플러그인을 설치한 ────┘
               Claude Code 인스턴스를 실행
 ```
@@ -73,6 +84,74 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 - 인증 정보는 플랫폼 DB에 암호화 저장 (AES-256 + 마스터 키)
 - 에이전트에게는 필요한 최소 권한만 런타임에 주입
 - secrets가 프롬프트나 findings에 노출되지 않도록 필터링
+
+---
+
+## Phase 4 진입 전 아키텍처 결정
+
+> 이 섹션은 v0.9.0-rc.16 코드베이스 검토에서 도출된 Phase 4 차단 요소들이다.
+> Step 16 시작 전에 아래 결정들이 확정되어야 한다.
+> 관련: [migration-v09.md — Phase 4 진입 전 해결해야 할 구조적 갭](migration-v09.md#phase-4-진입-전-해결해야-할-구조적-갭)
+
+### A. 세션 병렬 격리 전략 (→ Step 24 선행 설계)
+
+**현재 문제**: 모든 훅이 `readSession()` → `.party/active-session.json` 단일 파일을 읽는다.
+두 팀이 동시에 실행되면 active pointer를 서로 덮어쓴다.
+`AI_PARTY_SESSION_ID` 환경 변수 경로가 있지만 Claude Code가 서브에이전트에게 per-session으로 주입하는 메커니즘이 없다.
+
+**결정 필요**:
+- **Option A**: `AI_PARTY_SESSION_ID` env를 Claude Code 인스턴스 시작 시 플랫폼이 주입 → 프로세스 수준 격리
+- **Option B**: `active-session.json`을 세션 레지스트리(배열)로 교체 → 훅이 session_id로 조회
+- **Option C**: Phase 4에서는 인스턴스 1개당 세션 1개 정책 유지 → Step 24(병렬)에서만 해결
+
+현재 권장: **Option A** (플랫폼 인스턴스 매니저가 env 주입 — Step 17 구현 시 함께 처리)
+
+### B. Approval 연동 메커니즘 (→ Step 18-A 선행 설계)
+
+**현재 문제**: 승인 흐름이 Claude Code 채팅 입력(`approve <session_id> <request_id>`)에만 의존한다.
+플랫폼이 결정 파일을 직접 써도 Claude Code 인스턴스가 재개 신호를 받을 방법이 없다 — HTTP polling이나 file watcher 없이는 `PENDING_APPROVAL`에서 유휴 대기 중인 인스턴스를 깨울 수 없다.
+
+**결정**: Claude가 MCP `request_approval` 도구를 **blocking 호출**로 실행 → 플랫폼이 사용자 결정을 받아 응답 반환.
+
+```
+Claude (ai-party) ──MCP call──▶ request_approval(session_id, gate_type, summary, payload)
+                                        │
+                                플랫폼이 REST로 사람에게 알림
+                                사람이 웹 대시보드에서 승인/거절
+                                        │
+Claude ◀──MCP response─────────── { decision: "approved"|"rejected", comment }
+```
+
+- **기본**: MCP `request_approval` blocking 호출 → 플랫폼이 사람 결정을 받아 응답
+- **Fallback**: MCP 서버 미연결 시 `claude remote-control`로 "approve {session_id} {request_id}" 메시지 주입 → `UserPromptSubmit` 훅 처리 (로컬/CLI 환경)
+- **효과**: `PENDING_APPROVAL` 유휴 대기 문제가 근본적으로 해소됨 — Claude가 MCP call을 열어두고 대기하므로 외부 polling/watcher 불필요
+
+구현 위치: [Step 18-A: MCP Server](#step-18-a-mcp-server-claude-code--platform)
+
+### C. SessionStart 훅 (→ Step 17 진입점)
+
+**현재 문제**: `hooks.json`에 `SessionStart` 이벤트 없음. 플랫폼 DB에서 프로젝트 정보를 로드할 훅 진입점이 없다.
+
+**해야 할 것**: Step 17 구현 시 `hooks.json`에 `SessionStart` 이벤트 추가:
+```json
+"SessionStart": [{
+  "type": "command",
+  "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs",
+  "timeout": 10
+}]
+```
+`session-start.mjs`: cwd 기반 프로젝트 감지 → 플랫폼 MCP `get_project_context` 호출 → `CLAUDE_PROJECT_ID` 등 env 주입
+
+### D. Mode Resolver 위치 결정 (→ Step 17-A)
+
+**결정 필요**: `single | party-light | party-full` 모드 결정 로직이 어디에 위치하는가?
+
+- **Option A**: 플랫폼 서버 — 티켓 입력 시 risk_level/complexity 분석 → `/party`, `/party-team` 커맨드로 지시
+- **Option B**: ai-party 플러그인 — `auto-delegate.mjs`에서 요청 분석 후 모드 자동 선택
+- **Option C**: 하이브리드 — 플랫폼이 모드 힌트 제공 → 플러그인이 최종 결정
+
+현재 권장: **Option A** (플랫폼이 "무엇을 할지" 결정하는 원칙과 일치)
+플랫폼이 `POST /tickets`에서 모드를 결정하고 적절한 `/party` 커맨드로 Claude Code에 지시.
 
 ---
 
@@ -96,8 +175,12 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 
 ### Step 17: Claude Code 인스턴스 관리
 
-- [ ] SessionStart 훅 → cwd 기반 프로젝트 자동 감지 → DB 정보 로드
-- [ ] Claude Code 인스턴스 실행 매니저
+> SessionStart 훅 설계: [Phase 4 진입 전 아키텍처 결정 C](#c-sessionstart-훅--step-17-진입점)
+> Approval 재개 메커니즘: [Phase 4 진입 전 아키텍처 결정 B](#b-approval-연동-메커니즘--step-18-a-선행-설계)
+
+- [ ] `hooks/hooks.json`에 `SessionStart` 이벤트 추가 + `hooks/session-start.mjs` 구현
+  - cwd 기반 프로젝트 감지 → 플랫폼 MCP Server에서 `project://context` 리소스로 프로젝트 컨텍스트 주입
+- [ ] Claude Code 인스턴스 실행 매니저 + `AI_PARTY_SESSION_ID` env 주입 (세션 격리)
 - [ ] .party/ 결과물 수집 → DB 저장
 - [ ] 팀/에이전트 설정 외부화
 - [ ] 런타임 정책 고정:
@@ -119,6 +202,8 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 
 ### Step 17-A: Mode Resolver (single | party-light | party-full)
 
+> 아키텍처 결정: 플랫폼 서버에서 모드 결정 → `/party` 커맨드로 Claude Code 지시 (→ [Phase 4 진입 전 아키텍처 결정 D](#d-mode-resolver-위치-결정--step-17-a))
+
 - [ ] 티켓 입력 시 모드 자동 결정기 추가
   - `single`: 저위험/저복잡도. 단일 에이전트 중심으로 빠르게 처리
   - `party-light`: 중간 복잡도. leader + 최소 워커 조합
@@ -128,18 +213,33 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 - [ ] 단일 모드도 에이전트 기반으로 실행(작업 큐를 통해 동시 다중 티켓 처리)
 - [ ] 모드 결정 결과를 `ticket_events`에 기록하고 대시보드에 노출
 
-### Step 18: API 서버
+### Step 18-A: MCP Server (Claude Code ↔ Platform)
+
+> 설계 결정: [Phase 4 진입 전 아키텍처 결정 B](#b-approval-연동-메커니즘--step-18-a-선행-설계)
+
+- [ ] 기술 스택: Node.js MCP SDK (`@modelcontextprotocol/sdk`)
+- [ ] MCP tools 구현
+  - `get_project_context` — cwd 기반 프로젝트 정보 + 인증 정보 (secrets 제외) 반환
+  - `create_ticket` — 플랫폼 DB에 티켓 생성 → ticket_id 반환
+  - `request_approval` — 승인 요청 생성 + 사용자 결정을 blocking으로 대기하여 `{ decision, comment }` 반환
+  - `get_session_status` — 현재 세션 상태 조회
+- [ ] MCP resources 구현
+  - `project://{project_id}/context` — 프로젝트 컨벤션, 브랜치 전략, 기술 스택 (읽기 전용)
+- [ ] `hooks/hooks.json`에 플랫폼 MCP 서버 등록 (SessionStart 시 자동 활성화)
+- [ ] REST Fallback: MCP 미연결 환경을 위한 `claude remote-control` 주입 경로 유지
+
+### Step 18-B: REST API (브라우저 / 외부 전용)
 
 - [ ] 기술 스택 선정 (Node.js/Fastify 또는 Python/FastAPI)
-- [ ] REST API 엔드포인트
+- [ ] REST API 엔드포인트 (브라우저 대시보드 + 모바일 + Webhook 전용)
   - `POST /tickets` — 사용자 요청 티켓 생성 (Jira 유사 진입점)
   - `GET /tickets/:id` — 티켓 상세 (상태, 단계, 담당 에이전트, 산출물)
   - `GET /tickets/:id/events` — 파이프라인 이벤트 타임라인
   - `POST /tickets/:id/comments` — 의견/질문/요청 전달
-  - `POST /approval-requests/:id/approve` — 승인
+  - `POST /approval-requests/:id/approve` — 승인 (MCP blocking call 응답과 동기화)
   - `POST /approval-requests/:id/reject` — 거절 + 사유
   - `POST /approval-requests/:id/revise` — 수정 요구 + 코멘트
-- [ ] claude remote-control 연동
+- [ ] approval 결정은 MCP `request_approval` 응답과 동일 결정 파일 공유 (동기화 필수)
 
 ---
 
@@ -174,7 +274,7 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 
 - [ ] **tickets.mjs PostToolUse 동기화**: Leader TaskCreate/TaskUpdate → `${RUNTIME_ROOT}/tickets/` 자동 생성
 - [ ] **`/party-board` 칸반**: tickets 연동 후 터미널 칸반 활성화
-- [ ] **events.ndjson → 대시보드 연동**: 이벤트 스트림 → WebSocket 브릿지
+- [ ] **events.ndjson → 대시보드 연동**: 이벤트 스트림 → MCP notification + REST WebSocket 브릿지 (Claude Code는 MCP로 emit, 브라우저는 REST/SSE로 구독)
 - [ ] **approval_requested 이벤트 브릿지**: 고위험 도구 실행 전 플랫폼 승인 대기 전환
 
 ---
@@ -199,6 +299,16 @@ AI OPS Platform (별도 프로젝트)    ai-party (Claude Code 플러그인)
 > v0.9.0-rc.13부터 `.party/sessions/<session-id>/` + `active-session.json` 기반의 세션 저장소 분리가 시작됐다.
 > 다만 findings/tickets 실행 아티팩트는 아직 활성 세션 중심이므로 완전 병렬 실행은 이 Phase에서 마무리한다.
 
+**선행 결정 필요**: 세션 병렬 격리 전략 (→ [Phase 4 진입 전 아키텍처 결정 A](#a-세션-병렬-격리-전략--step-24-선행-설계))
+
+현재 블로커:
+- `active-session.json` 단일 포인터: 모든 훅이 단일 전역 파일을 읽어 병렬 실행 시 충돌
+- `lib/session.mjs`의 `isSessionStale` 4시간 하드코딩: 장기 파이프라인(migration/security) 대응 필요
+- `session.task_ticket_map` read-modify-write 비원자적: 멀티 워커 동시 완료 시 map 엔트리 유실 가능
+
+- [ ] 세션 격리 전략 확정 및 구현 (active-session.json 단일 포인터 제거 또는 env 주입 방식 결정)
+- [ ] `isSessionStale` 타임아웃 설정화 (`session.json` `max_age_ms` 필드 또는 플랫폼 환경 변수)
+- [ ] `task_ticket_map` 업데이트 원자화 (별도 파일 또는 CAS 방식)
 - [ ] 여러 프로젝트 요청 병렬 처리
 - [ ] 리소스 관리 (동시 에이전트 수 제한)
 - [ ] 큐 시스템 (우선순위 기반)

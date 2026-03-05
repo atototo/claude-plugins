@@ -11,8 +11,6 @@
     "allow": [
       "Bash(codex_exec.sh*)",
       "Bash(gemini_exec.sh*)",
-      "Bash(codex *)",
-      "Bash(gemini *)",
       "Bash(python3 *)",
       "Bash(python3 -c *)",
       "Bash(node *)",

@@ -400,7 +400,7 @@ reviewer
 - [x] `${RUNTIME_ROOT}/approvals/*.json` 수정 경로를 LOW로 분류해 승인 처리 재귀 루프 차단
 - [x] 승인 결정(`approve/reject/revise`) 이벤트를 session/events에 표준 구조(`decision_made`, `phase_changed`)로 기록
 - [x] `approve` 시 중단 액션 1회 재개(grant 소비), `reject/revise` 시 대체 경로 안내로 분기
-- [ ] 브릿지 미연결/실패 시 fail-safe: 파이프라인 중단 + 사용자에게 명시적 안내
+- [x] 브릿지 미연결/실패 시 fail-safe: `PENDING_APPROVAL` + valid pending 없을 때 복구 안내 3가지 출력 (reject 커맨드 / approvals/ 경로 / 새 세션)
 - [ ] 팀 공통 적용 검증 (review 전용이 아니라 bugfix/devops/dev-backend/dev-frontend/security/feature/fullstack/research/migration 포함)
 
 ### Phase 3.5-E: 팀 계약 회귀 방지 (v0.9.0-rc.4)
@@ -436,6 +436,27 @@ reviewer
 - [x] post-tool-verify 안내 문구를 "next-phase on-demand"로 수정
 - [x] `PENDING_APPROVAL` 상태에서도 SendMessage를 `approval_context.previous_phase` 계약으로 검증 (out-of-phase 우회 지시 차단)
 - [x] `mcp__sequential-thinking__sequentialthinking` 위험도를 LOW로 조정 (CONTEXTUALIZING 불필요 대기 방지)
+
+### Phase 3.5-J: 안정화 핫픽스 (v0.9.0-rc.16)
+
+코드베이스 전체 검토 후 발견된 버그 5건 수정. 특히 멀티 멤버 팀(feature/migration) 사용 전 필수.
+
+- [x] **`hooks/post-pipeline-state.mjs`** 멀티 멤버 phase 완료 게이트 추가
+  - 증상: feature 팀 EXECUTING에서 `builder`가 `implementation.md`를 쓰는 순간 builder-2 완료 전에 REVIEWING으로 조기 전환
+  - 원인: 아티팩트 존재만 확인하고 동일 phase의 나머지 티켓 완료 여부를 미확인
+  - 수정: 전환 직전 `arePhaseTicketsDone(session.phase)` 체크 추가. 티켓 미사용 팀은 true 반환으로 영향 없음(backward compat)
+- [x] **`hooks/user-prompt-approval-bridge.mjs`** 오탐 방지 2건
+  - `ok` verb 제거: "ok 알겠어" 같은 일반 대화에서 approval이 trigger되는 문제
+  - bare `approve`(sessionId/requestId 없음) → `session.phase === PENDING_APPROVAL`인 경우에만 처리. stale pending 요청을 잘못 승인하는 문제 방지
+- [x] **`hooks/pre-tool-enforce.mjs`** 한국어 SendMessage 계약 검증 개선
+  - 증상: "요구사항을"(조사 포함) vs "요구사항"처럼 형태가 다른 경우 키워드 매칭 실패 → 정상 메시지를 계약 위반으로 오차단
+  - 수정: 한국어 토큰은 마지막 2자를 제외한 접두어 매칭 적용 (`[가-힣]` 포함 토큰 감지)
+- [x] **`hooks/post-team-init.mjs`** 세션 재사용 판단 로직 수정
+  - 증상: `existingSession.id.includes(teamName)` 비교 — 타임스탬프 차이로 항상 false가 되거나 "dev" ⊂ "dev-backend" 오탐 가능
+  - 수정: `matchTeamType(teamName) === existingSession.team` 팀 타입 직접 비교
+- [x] **`lib/constants.mjs` + `hooks/pre-tool-enforce.mjs`** `PENDING_APPROVAL` 의미 정리
+  - `HOST_DIRECT_STATES`에 `PENDING_APPROVAL`이 포함되어 "Host가 자유롭게 도구 사용 가능" 오해 유발
+  - 실제로는 L246 전용 strict gate가 처리하는 상태 — `HOST_DIRECT_STATES`에서 제거하고 `isPipelinePhase` OR 조건 단순화
 
 ---
 
@@ -488,6 +509,8 @@ reviewer
 
 ## 6. Phase 4-6 정합성
 
+> 상세 설계: [phase4-6.md](phase4-6.md)
+
 ### 이 전환이 Phase 4-6에 미치는 영향
 
 | Phase | 영향 | 상세 |
@@ -495,6 +518,20 @@ reviewer
 | Phase 4: Platform | **단순화** | 단일 API(Anthropic) → 인증/인스턴스 관리 1/3 |
 | Phase 5: Dashboard | **변경 없음** | .party/ 구조 유지, findings 동일 |
 | Phase 6: Production | **단순화** | 단일 런타임 → 스케일링/모니터링 단순화 |
+
+### Phase 4 진입 전 해결해야 할 구조적 갭
+
+코드베이스 검토(v0.9.0-rc.16) 시점에 발견된 Phase 4 차단 요소들. 상세는 [phase4-6.md — Phase 4 진입 전 아키텍처 결정](phase4-6.md#phase-4-진입-전-아키텍처-결정) 참조.
+
+| 항목 | 구분 | 현재 상태 | Phase 4 요구 |
+|------|------|----------|-------------|
+| `active-session.json` 단일 포인터 | 🔴 차단 | 전역 단일 파일 | 병렬 세션 격리 필요 (Step 24) |
+| Approval 시스템 CLI 전용 | 🔴 차단 | `approve <session_id> <request_id>` 입력 전용 | REST API 연동 필요 (Step 18) |
+| SessionStart 훅 없음 | 🔴 차단 | hooks.json에 미등록 | DB 프로젝트 정보 로드 진입점 (Step 17) |
+| Mode Resolver 미구현 | 🟡 설계 필요 | 항상 party-full | single/party-light/party-full 자동 결정 (Step 17-A) |
+| `task_ticket_map` 동시성 | 🟡 Phase 4 이전 수정 권장 | read-modify-write 비원자적 | 병렬 워커 완료 동시 발생 시 map 엔트리 유실 가능 |
+| stale 타임아웃 4시간 하드코딩 | 🟢 설정화 필요 | `session.mjs` 상수 | 장기 파이프라인(migration/security) 대응 |
+| `settings.json` 레거시 권한 | 🟢 정리 필요 | `Bash(codex *)`, `Bash(gemini *)` 광범위 허용 | 래퍼 스크립트만 허용으로 축소 |
 
 ### 필수 보강 항목 (플랫폼 티켓 중심)
 

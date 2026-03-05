@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { STATES } from "../lib/constants.mjs";
 import { readSession, isPipelineActive, isSessionStale, scopedFindingsDir } from "../lib/session.mjs";
 import { transition } from "../lib/state-machine.mjs";
+import { arePhaseTicketsDone } from "../lib/tickets.mjs";
 
 function fallbackPhasesByRole(role) {
   if (role === "leader" || role === "orchestrator") return [STATES.CONTEXTUALIZING];
@@ -149,6 +150,13 @@ if (!existsSync(phaseConfig.artifact)) process.exit(0);
 const freshSession = readSession();
 if (!freshSession || freshSession.phase !== session.phase) {
   process.exit(0); // 이미 전환됨
+}
+
+// Multi-member phase guard: 현재 phase의 모든 티켓이 완료되어야 전환한다.
+// (예: EXECUTING에서 builder + builder-2가 병렬 실행 시, 첫 번째 implementation.md 생성만으로 전환 방지)
+// 티켓이 없으면 true 반환 (backward compat) — 티켓 미사용 팀은 영향 없음.
+if (!arePhaseTicketsDone(session.phase, cwd)) {
+  process.exit(0);
 }
 
 const nextPhase = typeof phaseConfig.next === "function"

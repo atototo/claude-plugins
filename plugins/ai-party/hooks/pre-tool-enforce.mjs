@@ -188,7 +188,11 @@ function hasInstructionKeywordCoverage(content, instruction) {
   const normalizedContent = normalizeText(content).toLowerCase();
   let matched = 0;
   for (const kw of keywords) {
-    if (normalizedContent.includes(kw)) matched += 1;
+    // 한국어 토큰(조사/어미 포함)은 접두어 매칭으로 처리:
+    // "요구사항을" → "요구사항", "분석하라" → "분석하" 로 매칭하여 particle 변형을 허용.
+    const hasHangul = /[가-힣]/.test(kw);
+    const kwToMatch = hasHangul ? kw.slice(0, Math.max(3, kw.length - 2)) : kw;
+    if (normalizedContent.includes(kwToMatch)) matched += 1;
     if (matched >= 2) return true;
   }
   return false;
@@ -449,7 +453,8 @@ if (hasLeader) {
     const contract = parseTeamContract(session);
     const member = contract?.byName?.get(recipient);
     const runtimeMember = session.members?.find((m) => m.name === recipient);
-    const isPipelinePhase = !HOST_DIRECT_STATES.has(phase) || phase === STATES.PENDING_APPROVAL;
+    // PENDING_APPROVAL은 HOST_DIRECT_STATES에서 제거되었으므로 OR 조건 불필요.
+    const isPipelinePhase = !HOST_DIRECT_STATES.has(phase);
 
     if (isPipelinePhase && type === "message" && recipient !== "leader") {
       if (runtimeMember && !runtimeMember.spawned) {

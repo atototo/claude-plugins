@@ -59,8 +59,11 @@ const requestedApprovalMode = String(process.env.AI_PARTY_APPROVAL_MODE || proce
 const approvalMode = requestedApprovalMode === "cli" ? "cli" : "platform";
 const existingSession = readSession(cwd);
 if (existingSession && isSessionValid(existingSession) && !isSessionStale(existingSession)) {
-  // teamName이 다르면 새 세션으로 덮어쓰기
-  const existingTeamMatch = existingSession.id && existingSession.id.includes(teamName);
+  // 팀 타입(dev-backend, bugfix 등)이 같고 진행 중인 세션만 재사용.
+  // raw teamName(타임스탬프 포함)으로 includes 비교하면 타임스탬프가 달라서
+  // 항상 false가 되거나, "dev"가 "dev-backend" 안에 포함되는 등 오탐이 발생한다.
+  const newTeamType = matchTeamType(teamName);
+  const existingTeamMatch = newTeamType && existingSession.team === newTeamType;
   if (existingTeamMatch && !TERMINAL_PHASES.has(existingSession.phase)) {
     // 같은 팀 + 진행 중 — pluginRoot/starting_phase 누락 시 패치
     let patched = false;

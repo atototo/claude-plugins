@@ -31,9 +31,10 @@ export const ALLOWED_TOOLS = new Set([
 ]);
 
 // ── States where Host can use tools directly ──
+// PENDING_APPROVAL은 제외: 전용 strict gate(pre-tool-enforce L246)가 처리하므로
+// HOST_DIRECT_STATES에 포함하면 "Host가 자유롭게 도구 사용 가능"이라는 오해를 유발한다.
 export const HOST_DIRECT_STATES = new Set([
   STATES.IDLE,
-  STATES.PENDING_APPROVAL,
   STATES.AWAITING_APPROVAL,
   STATES.APPROVED,
   STATES.REJECTED,

@@ -59,7 +59,7 @@ function extractDecisionCommand(text) {
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const line = String(lines[i] || "").trim();
     if (!line) continue;
-    const m = line.match(/^(?:[-*>`]+\s*)?(approve|ok|허가|승인(?:해|할게)?|reject|거절(?:해|할게)?|revise|수정(?:해|할게)?)(?:\s*:?\s*(.*))?$/i);
+    const m = line.match(/^(?:[-*>`]+\s*)?(approve|허가|승인(?:해|할게)?|reject|거절(?:해|할게)?|revise|수정(?:해|할게)?)(?:\s*:?\s*(.*))?$/i);
     if (!m) continue;
     const rest = String(m[2] || "").trim();
     const tokens = rest ? rest.split(/\s+/).filter(Boolean) : [];
@@ -98,6 +98,25 @@ if (!command) {
     ? getLatestPendingRequest(session.id)
     : null;
   if (!pending || pending.status !== "pending") {
+    // fail-safe: PENDING_APPROVAL에 갇혀 있는데 valid pending request가 없으면 복구 안내.
+    // approval 파일 유실/손상 시 사용자가 무한 대기에 빠지는 것을 방지한다.
+    if (session.phase === STATES.PENDING_APPROVAL) {
+      const runtimeRoot = session.runtime_root || `.party/sessions/${session.id}`;
+      process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: "UserPromptSubmit",
+          additionalContext: [
+            `[ai-party] WARNING: Session ${session.id} is stuck in PENDING_APPROVAL`,
+            `but no valid pending approval request was found.`,
+            `Approval file may be lost or already processed.`,
+            `Recovery options:`,
+            `  1. "reject ${session.id}" — return to previous phase`,
+            `  2. Check ${runtimeRoot}/approvals/ for remaining request files`,
+            `  3. If unrecoverable, start a new session`,
+          ].join(" "),
+        },
+      }));
+    }
     process.exit(0);
   }
   process.stdout.write(JSON.stringify({
@@ -112,14 +131,18 @@ if (!command) {
 const { verb, requestIdArg, sessionIdArg, comment } = command;
 
 let decision = null;
-if (["approve", "ok", "허가", "승인", "승인해", "승인할게"].includes(verb)) decision = "approve";
+if (["approve", "허가", "승인", "승인해", "승인할게"].includes(verb)) decision = "approve";
 if (["reject", "거절", "거절해", "거절할게"].includes(verb)) decision = "reject";
 if (["revise", "수정", "수정해", "수정할게"].includes(verb)) decision = "revise";
 if (!decision) process.exit(0);
 
+// requestId 없는 bare 커맨드(approve만 입력)는 PENDING_APPROVAL 상태에서만 허용.
+// 일반 대화 중 "approve" 단어를 포함하는 메시지의 의도치 않은 승인 방지.
 const pending = requestIdArg
   ? readApprovalRequest(requestIdArg)
-  : getLatestPendingRequest(session.id);
+  : session.phase === STATES.PENDING_APPROVAL
+    ? getLatestPendingRequest(session.id)
+    : null;
 
 if (sessionIdArg && sessionIdArg !== session.id) {
   process.stdout.write(JSON.stringify({
