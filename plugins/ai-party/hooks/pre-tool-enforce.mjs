@@ -213,6 +213,11 @@ function isShutdownControlTool(name, input) {
   if (name === "TeamDelete" || name === "AskUserQuestion") return true;
   // ToolSearch는 디퍼드 툴 로딩 메타 동작 — 상태 변경 없으므로 PENDING_APPROVAL에서도 허용
   if (name === "ToolSearch") return true;
+  // TeamCreate: 새 세션 시작 — PENDING_APPROVAL이어도 새 /party 호출은 fresh session으로 시작해야 함
+  // post-team-init의 TERMINAL_PHASES에 PENDING_APPROVAL이 포함되어 있어 fresh session이 생성됨
+  if (name === "TeamCreate") return true;
+  // Read-only discovery tools: 상태 변경 없음 — PENDING_APPROVAL에서도 안전 (팀 감지, 컨텍스트 수집)
+  if (name === "Glob" || name === "Read" || name === "Grep") return true;
   if (name !== "SendMessage") return false;
   const t = String(input?.type || "").toLowerCase();
   return t === "shutdown_request" || t === "shutdown_response";
