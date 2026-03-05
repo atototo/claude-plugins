@@ -52,6 +52,9 @@ if (!teamName.startsWith("party-")) {
 const TERMINAL_PHASES = new Set([
   "COMPLETED", "DONE", "ROLLED_BACK", "FAILED", "REJECTED", "APPROVED",
   "AWAITING_APPROVAL",
+  // PENDING_APPROVAL: 미결 승인이 있는 채로 새 /party 호출 시 fresh session 생성
+  // (이전 세션의 승인 대기가 새 파이프라인을 막지 않도록)
+  "PENDING_APPROVAL",
 ]);
 
 const cwd = process.cwd();

@@ -211,6 +211,8 @@ const toolInput = payload?.tool_input ?? {};
 
 function isShutdownControlTool(name, input) {
   if (name === "TeamDelete" || name === "AskUserQuestion") return true;
+  // ToolSearch는 디퍼드 툴 로딩 메타 동작 — 상태 변경 없으므로 PENDING_APPROVAL에서도 허용
+  if (name === "ToolSearch") return true;
   if (name !== "SendMessage") return false;
   const t = String(input?.type || "").toLowerCase();
   return t === "shutdown_request" || t === "shutdown_response";
