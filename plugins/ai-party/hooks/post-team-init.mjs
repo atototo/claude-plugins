@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { createSession, writeSession, readSession, isSessionValid, isSessionStale } from "../lib/session.mjs";
 import { transition } from "../lib/state-machine.mjs";
 import { emit } from "../lib/events.mjs";
+import { createEpicTicket, createStoryTicket } from "../lib/tickets.mjs";
 import {
   PARTY_DIR,
   EVENT_TYPES,
@@ -301,6 +302,14 @@ try {
   };
   process.stdout.write(JSON.stringify(msg));
   process.exit(0);
+}
+
+// ── Epic + CONTEXTUALIZING Story 자동 생성 ──
+try {
+  createEpicTicket({ sessionId: session.id, task, cwd });
+  createStoryTicket({ sessionId: session.id, phase: startingPhase, cwd });
+} catch {
+  // fail-open: 티켓 생성 실패는 파이프라인을 막지 않는다
 }
 
 // ── 초기 전환: IDLE → CONTEXTUALIZING ──

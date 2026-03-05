@@ -6,7 +6,7 @@
 
 import { readFileSync } from "node:fs";
 import { readSession, writeSession, isPipelineActive, isSessionValid, isSessionStale } from "../lib/session.mjs";
-import { createTicket, updateTicket } from "../lib/tickets.mjs";
+import { createTicket, updateTicket, listTickets } from "../lib/tickets.mjs";
 import { STATES, TICKET_STATUSES } from "../lib/constants.mjs";
 
 function toObject(value) {
@@ -76,7 +76,7 @@ try {
 }
 
 const toolName = String(payload?.tool_name || "");
-if (toolName !== "TaskCreate" && toolName !== "TaskUpdate") {
+if (toolName !== "TaskCreate" && toolName !== "TaskUpdate" && toolName !== "SendMessage") {
   process.exit(0);
 }
 
@@ -91,6 +91,8 @@ const taskId = extractTaskId(toolInput, toolResult);
 
 session.task_ticket_map = session.task_ticket_map || {};
 
+const cwd = process.cwd();
+
 try {
   if (toolName === "TaskCreate") {
     const title = firstNonEmpty(
@@ -100,14 +102,18 @@ try {
       toolInput.prompt,
       toolResult.title,
       toolResult.name,
+      // Fallback: try to extract meaningful title from description
+      toolInput.description ? String(toolInput.description).split(".")[0].trim().slice(0, 80) : "",
       taskId ? `Task ${taskId}` : "Task"
     );
     const description = firstNonEmpty(toolInput.description, toolResult.description);
     const assignee = firstNonEmpty(toolInput.assignee, toolInput.owner, toolResult.assignee, null) || null;
+    const phase = effectiveTicketPhase(session);
     const ticket = createTicket({
+      sessionId: session.id,
       title,
       description,
-      phase: effectiveTicketPhase(session),
+      phase,
       assignee,
     });
     if (taskId) {
@@ -119,13 +125,13 @@ try {
   if (toolName === "TaskUpdate") {
     let mappedTicketId = taskId ? session.task_ticket_map[String(taskId)] : null;
     const directTicketId = firstNonEmpty(toolInput.ticket_id, toolInput.ticketId);
-    // Some sessions emit TaskUpdate without prior TaskCreate.
-    // In that case, bootstrap a ticket from TaskUpdate payload.
+    // Some sessions emit TaskUpdate without prior TaskCreate — bootstrap a ticket.
     if (!mappedTicketId && taskId) {
       if (!hasBootstrapFields(toolInput, toolResult)) {
         process.exit(0);
       }
       const seeded = createTicket({
+        sessionId: session.id,
         title: firstNonEmpty(
           toolInput.title,
           toolInput.name,
@@ -142,7 +148,7 @@ try {
       writeSession(session);
     }
 
-    const ticketId = mappedTicketId || (/^TICKET-\d+$/i.test(directTicketId) ? directTicketId : null);
+    const ticketId = mappedTicketId || (/^(TICKET|PRT)-/i.test(directTicketId) ? directTicketId : null);
     if (!ticketId) process.exit(0);
 
     // Prefer observed result status over requested input status.
@@ -156,7 +162,23 @@ try {
     if (report) updates.report = report;
 
     if (Object.keys(updates).length > 0) {
-      updateTicket(ticketId, updates);
+      updateTicket(ticketId, updates, cwd);
+    }
+  }
+
+  // SendMessage → mark assignee's TODO tickets as IN_PROGRESS
+  if (toolName === "SendMessage") {
+    const msgType = String(toolInput?.type || "message").toLowerCase();
+    if (msgType !== "message") process.exit(0);
+    const recipient = String(toolInput?.recipient || "").trim();
+    if (!recipient || recipient === "leader" || recipient === "team-lead") process.exit(0);
+
+    const currentPhase = effectiveTicketPhase(session);
+    const toStart = listTickets({ assignee: recipient }, cwd)
+      .filter((t) => t.type === "task" && t.status === TICKET_STATUSES.TODO
+        && (!t.phase || t.phase === currentPhase));
+    for (const t of toStart) {
+      updateTicket(t.id, { status: TICKET_STATUSES.IN_PROGRESS }, cwd);
     }
   }
 } catch {

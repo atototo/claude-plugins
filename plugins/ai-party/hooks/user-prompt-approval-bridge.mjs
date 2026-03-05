@@ -2,11 +2,43 @@
 // user-prompt-approval-bridge.mjs — UserPromptSubmit hook
 // Consume approve/reject/revise decisions for pending approval requests.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import { emit } from "../lib/events.mjs";
 import { readSession, writeSession, isPipelineActive, isSessionValid, isSessionStale } from "../lib/session.mjs";
 import { EVENT_TYPES, STATES } from "../lib/constants.mjs";
 import { decideApprovalRequest, getLatestPendingRequest, readApprovalRequest } from "../lib/approval-bridge.mjs";
+
+// Advance phase based on artifacts that already exist in the session's findings dir.
+// Fixes race condition: builder tries Edit before post-pipeline-state updates session.phase,
+// so APR records an earlier previous_phase (e.g. ANALYZING instead of EXECUTING).
+const ARTIFACT_PHASE_GATES = [
+  ["findings/review.md", STATES.REVIEWING],
+  ["findings/implementation.md", STATES.REVIEWING],
+  ["findings/design.md", STATES.EXECUTING],
+  ["findings/analysis.md", STATES.PLANNING],
+  ["findings/context.md", STATES.ANALYZING],
+];
+const PHASE_ORDER = [
+  STATES.IDLE, STATES.CONTEXTUALIZING, STATES.ANALYZING,
+  STATES.PLANNING, STATES.EXECUTING, STATES.REVIEWING,
+  STATES.AWAITING_APPROVAL,
+];
+
+function resolvePhaseFromArtifacts(session, currentPhase) {
+  const rtRaw = String(session?.runtime_root || (session?.id ? `.party/sessions/${session.id}` : ""));
+  if (!rtRaw) return currentPhase;
+  const rt = rtRaw.startsWith("/") ? rtRaw : join(process.cwd(), rtRaw);
+  const currentIdx = PHASE_ORDER.indexOf(currentPhase);
+  for (const [artifact, phase] of ARTIFACT_PHASE_GATES) {
+    if (existsSync(join(rt, artifact))) {
+      const artifactIdx = PHASE_ORDER.indexOf(phase);
+      if (artifactIdx > currentIdx) return phase;
+      break;
+    }
+  }
+  return currentPhase;
+}
 
 let payload;
 try {
@@ -194,13 +226,16 @@ if (decision === "approve") {
 }
 
 if (wasPending && prevPhase) {
+  // Advance phase based on existing artifacts to fix race condition:
+  // builder may try Edit before phase hook updates session.phase → APR records wrong previous_phase.
+  const restoredPhase = resolvePhaseFromArtifacts(session, prevPhase);
   session.phase_history = Array.isArray(session.phase_history) ? session.phase_history : [];
   session.phase_history.push({
-    phase: prevPhase,
+    phase: restoredPhase,
     entered_at: new Date().toISOString(),
-    reason: `approval decision: ${decision} (${decided.request_id})`,
+    reason: `approval decision: ${decision} (${decided.request_id})${restoredPhase !== prevPhase ? ` [advanced from ${prevPhase} via artifacts]` : ""}`,
   });
-  session.phase = prevPhase;
+  session.phase = restoredPhase;
 }
 
 try {

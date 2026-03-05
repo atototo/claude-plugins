@@ -1,22 +1,73 @@
 // tickets.mjs — ticket CRUD + dependency management
-// Stores individual ticket files at <runtime_root>/tickets/TICKET-NNN.json
+// Ticket hierarchy (Jira-like):
+//   Epic  : PRT-{short}              — one per session (auto-created on team init)
+//   Story : PRT-{short}-{PHASE}      — one per pipeline phase (auto-created on phase start)
+//   Task  : PRT-{short}-{PHASE}-NNN  — individual work items (created by leader via TaskCreate)
+//
+// {short} = first 6 hex chars of SHA1(sessionId) — collision-free, compact
 
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { atomicWriteJSON } from "./atomic-write.mjs";
 import { TICKET_STATUSES, EVENT_TYPES } from "./constants.mjs";
 import { emit } from "./events.mjs";
 import { scopedTicketsDir } from "./session.mjs";
 
+// ── ID helpers ──
+
+function sessionShort(sessionId) {
+  if (!sessionId) return "UNKNWN";
+  return createHash("sha1").update(String(sessionId)).digest("hex").slice(0, 6).toUpperCase();
+}
+
+const PHASE_ABBREV = {
+  CONTEXTUALIZING: "CTX",
+  ANALYZING: "ANA",
+  PLANNING: "PLN",
+  EXECUTING: "EXE",
+  REVIEWING: "REV",
+};
+
+function phaseAbbrev(phase) {
+  return PHASE_ABBREV[String(phase || "").toUpperCase()] || String(phase || "UNK").slice(0, 3).toUpperCase();
+}
+
+export function epicId(sessionId) {
+  return `PRT-${sessionShort(sessionId)}`;
+}
+
+export function storyId(sessionId, phase) {
+  return `PRT-${sessionShort(sessionId)}-${phaseAbbrev(phase)}`;
+}
+
 function ticketPath(ticketId, cwd = process.cwd()) {
   const scoped = scopedTicketsDir(cwd);
   return join(scoped, `${ticketId}.json`);
 }
 
+function ensureTicketsDir(cwd) {
+  mkdirSync(scopedTicketsDir(cwd), { recursive: true });
+}
+
 /**
- * Get the next ticket number by scanning existing tickets.
+ * Next task sequence number within a phase (e.g., PRT-A3F7B2-ANA-003 → 4).
  */
-function nextTicketNumber(cwd) {
+function nextTaskNumber(sessionId, phase, cwd) {
+  const dir = scopedTicketsDir(cwd);
+  if (!existsSync(dir)) return 1;
+  const prefix = storyId(sessionId, phase) + "-";
+  const nums = readdirSync(dir)
+    .filter((f) => f.startsWith(prefix) && f.endsWith(".json"))
+    .map((f) => parseInt(f.replace(prefix, "").replace(".json", ""), 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return nums.length === 0 ? 1 : Math.max(...nums) + 1;
+}
+
+/**
+ * Fallback: old TICKET-NNN scheme for sessions without sessionId context.
+ */
+function nextLegacyTicketNumber(cwd) {
   const dir = scopedTicketsDir(cwd);
   if (!existsSync(dir)) return 1;
   const files = readdirSync(dir).filter((f) => f.startsWith("TICKET-") && f.endsWith(".json"));
@@ -26,19 +77,111 @@ function nextTicketNumber(cwd) {
 }
 
 /**
- * Create a new ticket.
+ * Auto-create Epic ticket (one per session). Called by post-team-init hook.
+ */
+export function createEpicTicket({ sessionId, task, cwd = process.cwd() }) {
+  const id = epicId(sessionId);
+  ensureTicketsDir(cwd);
+  // Idempotent: skip if already exists
+  if (existsSync(ticketPath(id, cwd))) return getTicket(id, cwd);
+  const ticket = {
+    id,
+    type: "epic",
+    title: String(task || "AI Party pipeline").slice(0, 120),
+    description: "",
+    phase: null,
+    status: TICKET_STATUSES.IN_PROGRESS,
+    assignee: null,
+    parentId: null,
+    dependsOn: [],
+    createdAt: new Date().toISOString(),
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+    findings: null,
+    report: null,
+  };
+  atomicWriteJSON(ticketPath(id, cwd), ticket);
+  emit(EVENT_TYPES.TICKET_CREATED, { ticketId: id, title: ticket.title, type: "epic" }, { cwd });
+  return ticket;
+}
+
+/**
+ * Auto-create Story ticket when a pipeline phase starts. Called by post-pipeline-state hook.
+ */
+export function createStoryTicket({ sessionId, phase, cwd = process.cwd() }) {
+  const id = storyId(sessionId, phase);
+  const parent = epicId(sessionId);
+  ensureTicketsDir(cwd);
+  // Idempotent: skip if already exists
+  if (existsSync(ticketPath(id, cwd))) return getTicket(id, cwd);
+  const PHASE_LABELS = {
+    CONTEXTUALIZING: "Collect project context",
+    ANALYZING: "Analyze codebase and requirements",
+    PLANNING: "Design solution approach",
+    EXECUTING: "Implement changes",
+    REVIEWING: "Review and verify results",
+  };
+  const ticket = {
+    id,
+    type: "story",
+    title: PHASE_LABELS[String(phase || "").toUpperCase()] || `${phase} phase`,
+    description: "",
+    phase: String(phase || "").toUpperCase(),
+    status: TICKET_STATUSES.IN_PROGRESS,
+    assignee: null,
+    parentId: parent,
+    dependsOn: [],
+    createdAt: new Date().toISOString(),
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+    findings: null,
+    report: null,
+  };
+  atomicWriteJSON(ticketPath(id, cwd), ticket);
+  emit(EVENT_TYPES.TICKET_CREATED, { ticketId: id, title: ticket.title, type: "story", phase }, { cwd });
+  return ticket;
+}
+
+/**
+ * Mark all task tickets (and story) for a phase as DONE. Called before phase transition.
+ */
+export function completePhaseTickets(phase, cwd = process.cwd()) {
+  const tickets = getPhaseTickets(phase, cwd);
+  for (const t of tickets) {
+    if (t.status !== TICKET_STATUSES.DONE) {
+      updateTicket(t.id, { status: TICKET_STATUSES.DONE }, cwd);
+    }
+  }
+}
+
+/**
+ * Create a new task ticket.
  * @param {object} opts
- * @param {string} opts.title
+ * @param {string} opts.title         - Meaningful description of the work
  * @param {string} opts.description
- * @param {string} opts.phase - Pipeline phase this ticket belongs to
- * @param {string} opts.assignee - Agent name (e.g., "gemini-analyst")
+ * @param {string} opts.phase         - Pipeline phase this ticket belongs to
+ * @param {string} opts.assignee      - Agent name (e.g., "analyst", "builder-2")
+ * @param {string} [opts.sessionId]   - Session ID for new-style PRT IDs
+ * @param {string} [opts.parentId]    - Explicit parent Story ID (auto-derived if omitted)
  * @param {string[]} [opts.dependsOn] - Ticket IDs this depends on
  * @param {string} [opts.cwd]
  * @returns {object} Created ticket
  */
-export function createTicket({ title, description, phase, assignee, dependsOn = [], cwd = process.cwd() }) {
-  const num = nextTicketNumber(cwd);
-  const id = `TICKET-${String(num).padStart(3, "0")}`;
+export function createTicket({ sessionId, title, description, phase, assignee, parentId, dependsOn = [], cwd = process.cwd() }) {
+  ensureTicketsDir(cwd);
+
+  // New-style ID: PRT-{short}-{PHASE}-NNN
+  let id;
+  let resolvedParentId = parentId || null;
+  if (sessionId && phase) {
+    const n = nextTaskNumber(sessionId, phase, cwd);
+    id = `${storyId(sessionId, phase)}-${String(n).padStart(3, "0")}`;
+    if (!resolvedParentId) resolvedParentId = storyId(sessionId, phase);
+  } else {
+    // Legacy fallback
+    const num = nextLegacyTicketNumber(cwd);
+    id = `TICKET-${String(num).padStart(3, "0")}`;
+  }
 
   // If dependsOn has unresolved tickets, status is BLOCKED; otherwise TODO
   const hasDeps = dependsOn.length > 0;
@@ -53,11 +196,13 @@ export function createTicket({ title, description, phase, assignee, dependsOn = 
 
   const ticket = {
     id,
-    title,
+    type: "task",
+    title: String(title || "Untitled task").slice(0, 120),
     description: description || "",
-    phase,
+    phase: phase ? String(phase).toUpperCase() : null,
     status,
     assignee: assignee || null,
+    parentId: resolvedParentId,
     dependsOn,
     createdAt: new Date().toISOString(),
     startedAt: null,
@@ -70,7 +215,8 @@ export function createTicket({ title, description, phase, assignee, dependsOn = 
 
   emit(EVENT_TYPES.TICKET_CREATED, {
     ticketId: id,
-    title,
+    title: ticket.title,
+    type: "task",
     phase,
     assignee,
     status,
@@ -174,7 +320,7 @@ export function listTickets(filter = {}, cwd = process.cwd()) {
   if (!existsSync(dir)) return [];
 
   const files = readdirSync(dir)
-    .filter((f) => f.startsWith("TICKET-") && f.endsWith(".json"))
+    .filter((f) => (f.startsWith("TICKET-") || f.startsWith("PRT-")) && f.endsWith(".json"))
     .sort();
 
   const tickets = [];
@@ -226,7 +372,8 @@ export function getPhaseTickets(phase, cwd = process.cwd()) {
  * @returns {boolean}
  */
 export function arePhaseTicketsDone(phase, cwd = process.cwd()) {
-  const tickets = getPhaseTickets(phase, cwd);
+  // Only task tickets count — story tickets are IN_PROGRESS throughout the phase.
+  const tickets = getPhaseTickets(phase, cwd).filter((t) => !t.type || t.type === "task");
   if (tickets.length === 0) return true; // no tickets = pass (backward compat)
   return tickets.every((t) => t.status === TICKET_STATUSES.DONE);
 }

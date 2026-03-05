@@ -94,12 +94,18 @@ Before assigning any worker task:
 Create tasks per workflow using TaskCreate.
 Set dependency chains with `addBlockedBy`.
 
+**Required fields for every TaskCreate:**
+- `title`: 1-line action description (what the worker does). Never use "Task" or generic names.
+  - Good: `"Analyze README.md installation section for gaps"`
+  - Bad: `"Task"`, `"Analyze"`, `"Task 1"`
+- `assignee`: exact worker name (e.g., `"analyst"`, `"builder-2"`). This links the ticket to the agent.
+
 Example (bugfix team):
 ```
-TaskCreate("Analyze bug root cause") -> task #1
-TaskCreate("Design fix approach") -> task #2, addBlockedBy: [#1]
-TaskCreate("Implement fix") -> task #3, addBlockedBy: [#2]
-TaskCreate("Review changes") -> task #4, addBlockedBy: [#3]
+TaskCreate("Analyze null pointer root cause in AuthService", assignee="analyst") -> task #1
+TaskCreate("Design minimal fix approach for AuthService", assignee="architect", addBlockedBy=[#1]) -> task #2
+TaskCreate("Implement AuthService null check fix", assignee="builder", addBlockedBy=[#2]) -> task #3
+TaskCreate("Review AuthService changes for correctness", assignee="reviewer", addBlockedBy=[#3]) -> task #4
 ```
 
 ### Step 5: Instruct Workers

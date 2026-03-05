@@ -476,16 +476,21 @@ if (hasLeader) {
     }
 
     if (isPipelinePhase && type === "message" && member && recipient !== "leader") {
-      const allowedPhases = allowedContractPhasesForMessage(session, contractPhase);
-      const phaseAllowed = member.phases.some((p) => allowedPhases.has(String(p || "").toUpperCase()));
-      if (!phaseAllowed) {
-        const result = {
-          decision: "block",
-          permissionDecision: "deny",
-          message: `[ai-party] SendMessage blocked: recipient "${recipient}" is assigned to phase [${member.phases.join(", ")}], allowed now: [${Array.from(allowedPhases).join(", ")}].`,
-        };
-        process.stdout.write(JSON.stringify(result));
-        process.exit(2);
+      // Phase gate: only applies to pre-spawn. Once a worker is spawned (active),
+      // allow messages regardless of session phase mismatch (e.g. after approval restores wrong phase).
+      const recipientSpawned = session.members?.find(m => m.name === recipient)?.spawned;
+      if (!recipientSpawned) {
+        const allowedPhases = allowedContractPhasesForMessage(session, contractPhase);
+        const phaseAllowed = member.phases.some((p) => allowedPhases.has(String(p || "").toUpperCase()));
+        if (!phaseAllowed) {
+          const result = {
+            decision: "block",
+            permissionDecision: "deny",
+            message: `[ai-party] SendMessage blocked: recipient "${recipient}" is assigned to phase [${member.phases.join(", ")}], allowed now: [${Array.from(allowedPhases).join(", ")}].`,
+          };
+          process.stdout.write(JSON.stringify(result));
+          process.exit(2);
+        }
       }
       const expectedOutputPath = resolveRuntimePath(member.outputPath, session);
       if (expectedOutputPath && !content.includes(expectedOutputPath)) {

@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { STATES } from "../lib/constants.mjs";
 import { readSession, isPipelineActive, isSessionStale, scopedFindingsDir } from "../lib/session.mjs";
 import { transition } from "../lib/state-machine.mjs";
-import { arePhaseTicketsDone } from "../lib/tickets.mjs";
+import { arePhaseTicketsDone, completePhaseTickets, createStoryTicket } from "../lib/tickets.mjs";
 
 function fallbackPhasesByRole(role) {
   if (role === "leader" || role === "orchestrator") return [STATES.CONTEXTUALIZING];
@@ -163,9 +163,24 @@ const nextPhase = typeof phaseConfig.next === "function"
   ? phaseConfig.next(freshSession)
   : phaseConfig.next;
 
+// 현재 phase 티켓 전체 DONE 처리 (task + story)
+try {
+  completePhaseTickets(session.phase, cwd);
+} catch {
+  // fail-open
+}
+
 const result = transition(nextPhase, phaseConfig.label, { skipGuard: true });
 if (result.ok) {
   const afterTransition = readSession();
+  // 다음 phase Story 자동 생성
+  try {
+    if (afterTransition?.id) {
+      createStoryTicket({ sessionId: afterTransition.id, phase: nextPhase, cwd });
+    }
+  } catch {
+    // fail-open
+  }
   const pendingNext = pendingMembersForPhase(afterTransition, nextPhase);
   const msg = {
     continue: true,
