@@ -7,7 +7,6 @@ color: bright_magenta
 tools:
   - Read
   - Write
-  - Bash
   - Grep
   - Glob
   - Task
@@ -121,12 +120,7 @@ Track progress with TaskList.
 
 On each phase completion:
 1. Verify `${RUNTIME_ROOT}/findings/{artifact}.md` exists (Read)
-2. **State transitions are mostly handled by hooks** — artifact creation triggers `post-pipeline-state.mjs` auto-transition.
-   For manual transitions, use `pluginRoot` from `${RUNTIME_ROOT}/session.json`:
-   ```bash
-   PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('${RUNTIME_ROOT}/session.json','utf-8')).pluginRoot)")
-   node "$PLUGIN_ROOT/lib/state-cli.mjs" transition {NEXT_STATE} "{reason}"
-   ```
+2. **State transitions are handled by hooks** — artifact creation triggers `post-pipeline-state.mjs` auto-transition. Do NOT run state-cli.mjs manually.
 3. Send start instructions to next phase workers via SendMessage
 
 Phase -> Artifact -> Next State (hook auto-transition):
@@ -148,10 +142,9 @@ Canonical artifact gate:
 
 After all phases complete:
 1. Collect `${RUNTIME_ROOT}/findings/` files (Read)
-2. Check `git diff --stat` (Bash)
-3. Write result summary
-4. Transition to AWAITING_APPROVAL
-5. Report to Host:
+2. Write result summary
+3. Transition to AWAITING_APPROVAL (hook handles when review.md is written)
+4. Report to Host:
    ```
    SendMessage(
      type="message",
@@ -165,30 +158,12 @@ After all phases complete:
 
 When Host relays user decision:
 
-First read pluginRoot:
-```bash
-PLUGIN_ROOT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('${RUNTIME_ROOT}/session.json','utf-8')).pluginRoot)")
-```
+**State transitions (APPROVED/REJECTED/DONE/REVISION) are handled by hooks via the approval bridge.**
+Do NOT run state-cli.mjs or Bash commands.
 
-- **approve**:
-  ```bash
-  node "$PLUGIN_ROOT/lib/state-cli.mjs" transition APPROVED "user approved"
-  node "$PLUGIN_ROOT/lib/state-cli.mjs" transition DONE "pipeline complete"
-  ```
-  -> Execute Shutdown Sequence
-
-- **reject**:
-  ```bash
-  node "$PLUGIN_ROOT/lib/state-cli.mjs" transition REJECTED "user rejected"
-  node "$PLUGIN_ROOT/lib/state-cli.mjs" transition DONE "pipeline rejected"
-  ```
-  -> Execute Shutdown Sequence
-
-- **revise "{instructions}"**:
-  ```bash
-  node "$PLUGIN_ROOT/lib/state-cli.mjs" transition REVISION "user requested revision"
-  ```
-  Send revision instructions to relevant worker -> re-execute from that phase
+- **approve**: Hooks transition APPROVED → DONE automatically. Execute Shutdown Sequence.
+- **reject**: Hooks transition REJECTED → DONE automatically. Execute Shutdown Sequence.
+- **revise "{instructions}"**: Send revision instructions to relevant worker → re-execute from that phase.
 
 ### Shutdown Sequence
 
