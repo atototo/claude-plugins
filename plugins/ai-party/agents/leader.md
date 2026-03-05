@@ -108,9 +108,24 @@ TaskCreate("Implement AuthService null check fix", assignee="builder", addBlocke
 TaskCreate("Review AuthService changes for correctness", assignee="reviewer", addBlockedBy=[#3]) -> task #4
 ```
 
-### Step 5: Instruct Workers
+### Step 5: Spawn Then Instruct Workers
 
-Send specific instructions to each worker via SendMessage:
+**Spawn workers first, then send instructions.**
+
+Before sending any message, spawn the worker with Agent if not already spawned:
+```
+Agent(
+  subagent_type="ai-party:{agent}",
+  name="{worker-name}",
+  prompt="You are {worker-name}. Read ${RUNTIME_ROOT}/session.json for context."
+)
+```
+
+- Use the exact `name` from session.members (e.g., `"analyst"`, `"builder-2"`).
+- If SendMessage is blocked with "not spawned yet" error, spawn with Agent first.
+- If blocked with "Initial lazy-spawn phase" error, use Agent to spawn the missing member.
+
+After spawning, send instructions via SendMessage:
 ```
 SendMessage(
   type="message",
@@ -159,6 +174,23 @@ After all phases complete:
      summary="Pipeline complete — approval needed"
    )
    ```
+
+### Handling PENDING_APPROVAL (Mid-Pipeline Tool Block)
+
+When a worker's tool is blocked and session enters PENDING_APPROVAL, ALL your tools are also blocked — except SendMessage to team-lead.
+
+**Mandatory action**: Immediately relay the approval request to Host:
+```
+SendMessage(
+  type="message",
+  recipient="team-lead",
+  content="[APPROVAL REQUIRED] A worker tool was blocked (HIGH/MEDIUM risk).\n\nTo continue, the HOST must type this in the @main Claude Code session (NOT in any agent tab):\n  approve {session_id} {request_id}\n\nRisk: {risk_level} | Tool: {tool_name}",
+  summary="Approval required — host action needed in @main"
+)
+```
+
+**Important**: The `approve` command only works when typed in the @main (Host) session.
+Typing it in @leader or @analyst tabs will NOT work — UserPromptSubmit hook only fires for the main session.
 
 ### Step 8: Handle Decision
 

@@ -220,7 +220,11 @@ function isShutdownControlTool(name, input) {
   if (name === "Glob" || name === "Read" || name === "Grep") return true;
   if (name !== "SendMessage") return false;
   const t = String(input?.type || "").toLowerCase();
-  return t === "shutdown_request" || t === "shutdown_response";
+  if (t === "shutdown_request" || t === "shutdown_response") return true;
+  // leader → team-lead 메시지: PENDING_APPROVAL 중에도 Host에게 승인 요청 전달 허용
+  // UserPromptSubmit 훅은 @main 세션에서만 발동하므로, leader가 Host를 통해 승인을 받아야 함
+  if (t === "message" && String(input?.recipient || "").toLowerCase() === "team-lead") return true;
+  return false;
 }
 
 // 0. session store 직접 수정 차단 (훅이 관리하므로 파이프라인 상태 무관하게 항상 보호)
@@ -435,7 +439,7 @@ if (hasLeader) {
   const initialRequired = requiredMembersForPhase(session, session.phase);
   const missingInitial = initialRequired.filter((m) => !m.spawned);
   if (missingInitial.length > 0) {
-    const SPAWN_ALLOWED = new Set(["Agent", "TeamCreate", "AskUserQuestion", "Read", "Glob", "Grep"]);
+    const SPAWN_ALLOWED = new Set(["Agent", "TeamCreate", "AskUserQuestion", "Read", "Glob", "Grep", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet"]);
     const contextWriteAllowed = isContextArtifactWrite(toolName, payload?.tool_input ?? {}, session.phase, session);
     if (!SPAWN_ALLOWED.has(toolName) && !contextWriteAllowed) {
       const result = {
