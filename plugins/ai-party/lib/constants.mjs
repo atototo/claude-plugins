@@ -28,6 +28,10 @@ export const ALLOWED_TOOLS = new Set([
   "Task", "Agent", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet",
   "TeamCreate", "TeamDelete", "SendMessage", "AskUserQuestion",
   "Skill", "TaskOutput", "TaskStop",
+  // Meta/discovery — deferred tool loader (no state mutation)
+  "ToolSearch",
+  // Read-only network
+  "WebFetch", "WebSearch",
 ]);
 
 // ── States where Host can use tools directly ──

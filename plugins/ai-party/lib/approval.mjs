@@ -10,6 +10,10 @@ const LOW_RISK_TOOLS = new Set([
   "Read", "Grep", "Glob",
   "Task", "TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskOutput", "TaskStop",
   "Agent", "TeamCreate", "TeamDelete", "SendMessage", "AskUserQuestion", "Skill",
+  // Meta/discovery — deferred tool loader, no state mutation
+  "ToolSearch",
+  // Read-only network — no local state mutation
+  "WebFetch", "WebSearch",
   // reasoning-only MCP tool (no side effects)
   "mcp__sequential-thinking__sequentialthinking",
 ]);
