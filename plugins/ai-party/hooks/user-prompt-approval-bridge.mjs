@@ -39,6 +39,20 @@ function approvalHelpText(req) {
   ].join(" ");
 }
 
+function isTeamStartCommand(text) {
+  const value = String(text || "").trim();
+  if (!value) return false;
+  const patterns = [
+    /^\/party(?:\b|[:\s-])/i,
+    /^\/ai-party:party(?:\b|[:\s-])/i,
+    /^party(?:\b|[:\s-])/i,
+    /^ai-party(?:\b|[:\s-])/i,
+    /^팀모드(?:$|[:\s-])/,
+    /^팀생성(?:$|[:\s-])/,
+  ];
+  return patterns.some((p) => p.test(value));
+}
+
 function extractDecisionCommand(text) {
   const lines = String(text || "").split(/\r?\n/);
   // Prefer the latest explicit command line the user typed.
@@ -76,6 +90,10 @@ function extractDecisionCommand(text) {
 
 const command = extractDecisionCommand(prompt);
 if (!command) {
+  // Starting a new team run should not be polluted by stale pending-approval hints.
+  if (isTeamStartCommand(prompt)) {
+    process.exit(0);
+  }
   const pending = session.phase === STATES.PENDING_APPROVAL
     ? getLatestPendingRequest(session.id)
     : null;

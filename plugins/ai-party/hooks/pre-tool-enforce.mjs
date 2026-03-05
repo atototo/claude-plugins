@@ -205,6 +205,13 @@ try {
 const toolName = payload?.tool_name ?? "";
 const toolInput = payload?.tool_input ?? {};
 
+function isShutdownControlTool(name, input) {
+  if (name === "TeamDelete" || name === "AskUserQuestion") return true;
+  if (name !== "SendMessage") return false;
+  const t = String(input?.type || "").toLowerCase();
+  return t === "shutdown_request" || t === "shutdown_response";
+}
+
 // 0. session store 직접 수정 차단 (훅이 관리하므로 파이프라인 상태 무관하게 항상 보호)
 if (toolName === "Write" || toolName === "Edit" || toolName === "MultiEdit") {
   const filePath = normalizePathLike(payload?.tool_input?.file_path ?? "");
@@ -233,6 +240,27 @@ if (session && (!isSessionValid(session) || isSessionStale(session))) {
 // 3. 활성 파이프라인 없으면 허용
 if (!isPipelineActive(session)) {
   process.exit(0);
+}
+
+// Strict approval gate: while pending request exists, user decision must be processed first.
+if (session?.phase === STATES.PENDING_APPROVAL) {
+  const pendingRequestId = String(session?.approval_context?.pending_request_id || "").trim();
+  const activePending = pendingRequestId ? readApprovalRequest(pendingRequestId) : null;
+  if (activePending?.status === "pending" && !isShutdownControlTool(toolName, toolInput)) {
+    const result = {
+      decision: "block",
+      permissionDecision: "deny",
+      message: [
+        `[ai-party] Pending approval gate active (session: ${session.id}).`,
+        `[ai-party] Request ${pendingRequestId} must be decided before continuing.`,
+        `[ai-party] Enter exactly: approve ${session.id} ${pendingRequestId}`,
+        `[ai-party] Or: reject ${session.id} ${pendingRequestId} <reason>`,
+        `[ai-party] Or: revise ${session.id} ${pendingRequestId} <comment>`,
+      ].join(" "),
+    };
+    process.stdout.write(JSON.stringify(result));
+    process.exit(2);
+  }
 }
 
 function consumeApprovalGrant(activeSession, name, input) {

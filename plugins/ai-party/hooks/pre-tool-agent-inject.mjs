@@ -51,6 +51,13 @@ let changed = false;
 const session = readSession();
 const runtimeRoot = session?.runtime_root || (session?.id ? `.party/sessions/${session.id}` : ".party/sessions/unknown");
 
+// Ensure Agent calls are always bound to the currently active ai-party session.
+// This prevents stale team_name values from previous sessions from leaking into mailbox routing.
+if (session?.id && updatedInput.team_name !== session.id) {
+  updatedInput.team_name = session.id;
+  changed = true;
+}
+
 function resolveRoleFromName(name = "") {
   const value = String(name || "");
   const known = [
