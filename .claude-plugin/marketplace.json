@@ -15,6 +15,12 @@
       "source": "./plugins/ai-party",
       "version": "0.9.0-rc.23",
       "description": "AI Party mode: role-based agents collaborate as a team with Agent Teams orchestration"
+    },
+    {
+      "name": "x-researcher",
+      "source": "./plugins/x-researcher",
+      "version": "1.0.0",
+      "description": "X(Twitter) AI trend auto-researcher with Obsidian integration"
     }
   ]
 }

@@ -1,0 +1,149 @@
+{
+  "skill_name": "x-researcher",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "오늘 AI 관련 최신 소식 X에서 리서치해줘",
+      "expected_output": "Obsidian vault에 daily 노트 + topic/entity 노트 생성. 최소 10개 포스트 수집, 3개 이상 토픽 식별. 변경 사항 섹션 포함.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "daily_note_created",
+          "type": "file_exists",
+          "description": "daily/{date}.md 파일이 생성되었는가"
+        },
+        {
+          "name": "topic_notes_created",
+          "type": "count_gte",
+          "description": "topics/ 폴더에 3개 이상 토픽 노트가 생성되었는가",
+          "threshold": 3
+        },
+        {
+          "name": "entity_notes_created",
+          "type": "count_gte",
+          "description": "entities/ 폴더에 2개 이상 엔티티 노트가 생성되었는가",
+          "threshold": 2
+        },
+        {
+          "name": "wikilinks_present",
+          "type": "content_contains",
+          "description": "daily 노트에 [[wikilink]]가 포함되어 토픽/엔티티와 연결되는가"
+        },
+        {
+          "name": "frontmatter_valid",
+          "type": "content_contains",
+          "description": "모든 노트에 YAML frontmatter(type, tags, date)가 있는가"
+        },
+        {
+          "name": "post_count_sufficient",
+          "type": "count_gte",
+          "description": "총 수집 포스트가 10개 이상인가",
+          "threshold": 10
+        },
+        {
+          "name": "changelog_section",
+          "type": "content_contains",
+          "description": "daily 노트에 '## 변경 사항' 섹션이 있고, 🆕 또는 📝 마커로 신규/업데이트를 구분하는가"
+        },
+        {
+          "name": "deep_dive_marker",
+          "type": "content_contains",
+          "description": "딥다이브가 수행된 경우 🔍 마커로 표시되었는가"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "MCP랑 AI 에이전트 관련해서 X에서 트렌드 찾아줘. 특히 Claude MCP 관련 내용 위주로",
+      "expected_output": "MCP와 AI agent 토픽 노트가 생성/업데이트되고, 관련 엔티티(Anthropic 등) 노트도 생성. 변경 사항에 업데이트 내역 표시.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "mcp_topic_exists",
+          "type": "file_exists",
+          "description": "topics/mcp.md가 생성되었는가"
+        },
+        {
+          "name": "ai_agent_topic_exists",
+          "type": "file_exists",
+          "description": "topics/ai-agent.md가 생성되었는가"
+        },
+        {
+          "name": "deep_dive_content",
+          "type": "content_length",
+          "description": "토픽 노트의 내용이 충분히 풍부한가 (500자 이상)",
+          "threshold": 500
+        },
+        {
+          "name": "changelog_with_details",
+          "type": "content_contains",
+          "description": "변경 사항 섹션에 각 토픽별 추가된 내용이 구체적으로 명시되었는가"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "x-researcher 처음 세팅하고 싶어. obsidian vault는 ~/Documents/AI-Test에 만들어줘",
+      "expected_output": "설정 파일 생성, 디렉토리 구조 생성, 사용자에게 세팅 완료 안내",
+      "files": [],
+      "assertions": [
+        {
+          "name": "config_created",
+          "type": "file_exists",
+          "description": "~/.claude/x-researcher-config.json이 생성되었는가"
+        },
+        {
+          "name": "directory_structure",
+          "type": "dir_exists",
+          "description": "daily/, topics/, entities/ 디렉토리가 생성되었는가"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "어제 리서치에 이어서 오늘도 X AI 리서치 해줘",
+      "expected_output": "기존 토픽/엔티티 노트에 타임라인이 누적 추가됨. daily 노트의 변경 사항에서 📝 마커로 업데이트 내역 표시. 신규는 🆕, 기존 업데이트는 📝으로 구분.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "existing_topic_updated",
+          "type": "content_contains",
+          "description": "기존 토픽 노트의 타임라인에 새 날짜 섹션이 추가되었는가"
+        },
+        {
+          "name": "changelog_update_marker",
+          "type": "content_contains",
+          "description": "변경 사항에 📝 마커로 업데이트된 노트가 표시되었는가"
+        },
+        {
+          "name": "new_vs_update_distinction",
+          "type": "content_contains",
+          "description": "신규(🆕)와 업데이트(📝)가 명확히 구분되었는가"
+        },
+        {
+          "name": "discovered_keywords_carried",
+          "type": "content_contains",
+          "description": "이전 실행에서 발견된 키워드가 이번 검색에 반영되었는가"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "AI 리서치 자동으로 매일 아침 9시에 실행되게 스케줄 설정해줘",
+      "expected_output": "cron 스케줄 등록 완료. 0 9 * * 1-5 패턴으로 평일 오전 9시 자동 실행. WebSearch 폴백 모드 설명.",
+      "files": [],
+      "assertions": [
+        {
+          "name": "schedule_created",
+          "type": "content_contains",
+          "description": "스케줄이 생성되어 cron 표현식이 설정되었는가"
+        },
+        {
+          "name": "fallback_explained",
+          "type": "content_contains",
+          "description": "로그인 만료 시 WebSearch 폴백 모드에 대한 설명이 포함되었는가"
+        }
+      ]
+    }
+  ]
+}
