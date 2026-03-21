@@ -2,9 +2,30 @@
 
 ## 토픽 vs 엔티티 판단
 
-- **토픽**: 기술/트렌드/개념 (예: ai-agent, fine-tuning, prompt-engineering, rag)
-- **엔티티**: 회사/인물/제품 (예: anthropic, ethan-mollick, claude-code)
-- 경계가 모호하면 토픽 우선. 예: "MCP"는 토픽, "Claude"는 엔티티
+**토픽 타입** (topic_type 필드):
+- `concept` — 기술 개념/원리 (예: rag, fine-tuning, attention-mechanism)
+- `trend` — 현재 유행/흐름 (예: vibe-coding, ai-agent, multimodal)
+- `methodology` — 실용 방법론/패턴 (예: chain-of-thought, multi-agent-pattern, prompt-chaining)
+- `usecase` — 적용 사례/도메인 (예: ai-in-healthcare, ai-coding-workflow)
+- `debate` — 비교/논쟁/대립 (예: rag-vs-finetuning, openai-vs-anthropic)
+- `policy` — 규제/정책/안전 (예: eu-ai-act, ai-safety-policy)
+- `terminology` — 커뮤니티 고유 용어/밈 (예: slop, vibe-designing, alignment-tax)
+
+**엔티티 타입** (entity_type 필드):
+- `company` — 기업/조직 (예: anthropic, openai, huggingface)
+- `person` — 인물/연구자 (예: karpathy, ethan-mollick)
+- `product` — 제품/서비스 (예: claude-code, cursor, chatgpt)
+- `repo` — 오픈소스 프로젝트/GitHub 레포 (예: ollama, litellm, langchain)
+- `paper` — 논문/연구 (예: attention-is-all-you-need, deepseek-r1)
+- `dataset` — 데이터셋/벤치마크 (예: mmlu, humaneval, swe-bench)
+- `community` — 커뮤니티/채널/팟캐스트 (예: latent-space-podcast, huggingface-discord)
+- `event` — 컨퍼런스/이벤트 (예: neurips-2025, google-io)
+
+**분류 원칙:**
+- 경계가 모호하면 토픽 우선. 예: "MCP"는 토픽(concept), "Claude"는 엔티티(product)
+- 오픈소스 레포는 엔티티(repo) — 토픽으로 분류하지 않는다
+- 논문은 엔티티(paper) — 토픽의 리소스 섹션에도 링크 추가
+- 논쟁/비교는 토픽(debate) — 양쪽 엔티티를 related_entities로 연결
 
 ## 엔티티 노트 생성 기준
 

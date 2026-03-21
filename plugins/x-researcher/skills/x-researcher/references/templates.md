@@ -97,9 +97,10 @@ tags: [daily, ai-research]
 ```markdown
 ---
 type: topic
+topic_type: {{concept|trend|methodology|usecase|debate|policy|terminology}}
 created: {{최초 생성일}}
 updated: {{마지막 업데이트일}}
-tags: [topic, {{관련 태그들}}]
+tags: [topic, {{topic_type}}, {{관련 태그들}}]
 related_entities: [{{관련 엔티티들}}]
 ---
 
@@ -152,11 +153,12 @@ related_entities: [{{관련 엔티티들}}]
 ```markdown
 ---
 type: entity
-entity_type: {{company|person|product}}
+entity_type: {{company|person|product|repo|paper|dataset|community|event}}
 created: {{최초 생성일}}
 updated: {{마지막 업데이트일}}
 tags: [entity, {{entity_type}}, {{관련 태그들}}]
 x_handle: "{{@handle 있으면}}"
+url: "{{GitHub URL | 공식 사이트 | arXiv 링크 있으면}}"
 ---
 
 # {{엔티티 이름}}
@@ -199,11 +201,20 @@ updated: {{마지막 업데이트일}}
 - [[토픽2]] - {{1줄 설명}}
 
 ## 주요 엔티티
-### 기업
+### 기업 (company)
 - [[기업1]] - {{1줄 설명}}
 
-### 인물
+### 인물 (person)
 - [[인물1]] - {{1줄 설명}}
+
+### 오픈소스 (repo)
+- [[레포1]] - {{1줄 설명}}
+
+### 논문 (paper)
+- [[논문1]] - {{1줄 설명}}
+
+### 이벤트 (event)
+- [[이벤트1]] - {{1줄 설명}}
 ```
 
 _index.md는 매 리서치 실행 시 업데이트:
