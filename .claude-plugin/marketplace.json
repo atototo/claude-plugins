@@ -19,7 +19,7 @@
     {
       "name": "x-researcher",
       "source": "./plugins/x-researcher",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "description": "X(Twitter) AI trend auto-researcher with Obsidian integration"
     }
   ]
