@@ -3,9 +3,25 @@
 X는 SPA라서 `screenshot`, `read_page`, `take_snapshot` 등이 "Page still loading" 에러를 낸다.
 모든 데이터 추출은 `javascript_tool`로 직접 DOM에서 한다.
 
+## 유니코드 안전 truncate 헬퍼
+
+모든 텍스트 추출에서 `.substring()` 대신 이 함수를 사용한다.
+`.substring()`은 이모지 같은 서로게이트 페어 중간을 잘라 JSON 직렬화 에러를 일으킨다.
+
+```javascript
+function safeTrunc(str, max) {
+  if (!str || str.length <= max) return str;
+  let s = str.substring(0, max);
+  const last = s.charCodeAt(s.length - 1);
+  if (last >= 0xD800 && last <= 0xDBFF) s = s.substring(0, s.length - 1);
+  return s;
+}
+```
+
 ## 포스트 목록 추출 (검색 결과 / 타임라인)
 
 ```javascript
+function safeTrunc(str, max) { if (!str || str.length <= max) return str; let s = str.substring(0, max); const last = s.charCodeAt(s.length - 1); if (last >= 0xD800 && last <= 0xDBFF) s = s.substring(0, s.length - 1); return s; }
 const articles = document.querySelectorAll('article[data-testid="tweet"]');
 const results = [];
 articles.forEach((article, i) => {
@@ -19,8 +35,8 @@ articles.forEach((article, i) => {
   const likesMatch = (likeBtn?.getAttribute('aria-label') || '0').match(/(\d+)/);
   const rtMatch = (retweetBtn?.getAttribute('aria-label') || '0').match(/(\d+)/);
   results.push({
-    user: userEl?.textContent?.substring(0, 60) || '',
-    t: (tweetTextEl?.textContent || '').substring(0, 500).replace(/https?:\/\/\S+/g, '[link]'),
+    user: safeTrunc(userEl?.textContent || '', 60),
+    t: safeTrunc((tweetTextEl?.textContent || '').replace(/https?:\/\/\S+/g, '[link]'), 500),
     d: timeEl?.getAttribute('datetime') || '',
     u: linkEl?.href?.split('?')[0] || '',
     l: likesMatch ? parseInt(likesMatch[1]) : 0,
@@ -46,6 +62,7 @@ window.scrollBy(0, 4000);
 포스트 URL로 직접 이동한 후:
 
 ```javascript
+function safeTrunc(str, max) { if (!str || str.length <= max) return str; let s = str.substring(0, max); const last = s.charCodeAt(s.length - 1); if (last >= 0xD800 && last <= 0xDBFF) s = s.substring(0, s.length - 1); return s; }
 const articles = document.querySelectorAll('article[data-testid="tweet"]');
 const thread = [];
 let originalAuthor = null;
@@ -53,7 +70,7 @@ articles.forEach((article, i) => {
   const userEl = article.querySelector('[data-testid="User-Name"]');
   const tweetTextEl = article.querySelector('[data-testid="tweetText"]');
   const timeEl = article.querySelector('time');
-  const user = userEl?.textContent?.substring(0, 60) || '';
+  const user = safeTrunc(userEl?.textContent || '', 60);
 
   // 첫 포스트의 작성자를 기준으로 스레드 판별
   if (i === 0) originalAuthor = user.split('@')[1]?.split('·')[0];
@@ -64,7 +81,7 @@ articles.forEach((article, i) => {
     idx: i,
     isAuthor: isOriginalAuthor,
     user: user,
-    text: (tweetTextEl?.textContent || '').substring(0, 1000).replace(/https?:\/\/\S+/g, '[link]'),
+    text: safeTrunc((tweetTextEl?.textContent || '').replace(/https?:\/\/\S+/g, '[link]'), 1000),
     time: timeEl?.getAttribute('datetime') || ''
   });
 });
@@ -83,5 +100,6 @@ const bio = document.querySelector('[data-testid="UserDescription"]')?.textConte
 const name = document.querySelector('[data-testid="UserName"]')?.textContent || '';
 const followersEl = document.querySelector('a[href$="/verified_followers"]');
 const followers = followersEl?.textContent || '';
-JSON.stringify({ name, bio: bio.substring(0, 300), followers });
+function safeTrunc(str, max) { if (!str || str.length <= max) return str; let s = str.substring(0, max); const last = s.charCodeAt(s.length - 1); if (last >= 0xD800 && last <= 0xDBFF) s = s.substring(0, s.length - 1); return s; }
+JSON.stringify({ name, bio: safeTrunc(bio, 300), followers });
 ```
