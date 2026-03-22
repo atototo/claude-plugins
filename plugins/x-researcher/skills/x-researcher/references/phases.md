@@ -40,6 +40,18 @@
 
 각 키워드마다 별도 검색 URL로 이동하여 수집.
 
+### 키워드 로딩
+
+검색에 사용할 키워드 목록을 구성한다:
+1. config.json의 `keywords.core` — 항상 포함
+2. `_state/keywords.md`의 active 키워드 — 최근 5일 내 출현한 discovered 키워드
+3. archived 키워드는 검색하지 않음
+4. **검색 순서: core 먼저 → active 순서**
+
+### 날짜 확인
+
+실행 시작 시 확인한 KST 시간을 기준으로 "오늘"과 "어제" 날짜를 결정한다.
+
 **절차 (키워드당):**
 1. `navigate`로 `x.com/search?q={keyword}%20min_faves:{min_engagement}&src=typed_query&f=live` 이동
 2. 4초 대기

@@ -45,6 +45,12 @@
 
 **엔티티 노트 ≠ 팔로우.** 팔로우 기준 미달이어도 엔티티 노트는 만든다.
 
+**최소 품질 기준** (미달 시 생성하지 않는다):
+- 1-2줄 설명 (소속, 역할, 전문 분야)
+- X 핸들 + 팔로워 수
+- 왜 주목하는지 1줄
+- 타임라인 최소 1건 (원문 링크 포함)
+
 ## 독립 토픽 생성 기준
 
 기존 토픽에 하위 항목으로 넣을지, 독립 토픽으로 만들지 판단하는 기준:
@@ -68,6 +74,25 @@
 - "AI 코딩 병목은 인간" (❤️-, 의견) → ❌ `ai-coding-tools.md`에 포함
 
 **원칙: 토픽은 적극적으로 만들되, 내용이 얇으면 나중에 합칠 수 있다. 반대로 묻혀버린 토픽은 발견하기 어렵다.**
+
+## 중복 토픽 방지 (필수)
+
+**토픽 생성 전 반드시 기존 파일 확인:**
+1. `Glob("topics/*{키워드}*")` 실행하여 유사 파일 존재 여부 확인
+2. 유사 파일이 있으면 **기존 파일의 타임라인에 추가** — 새 파일 생성 금지
+3. 예: `browser-use-cli.md`가 있으면 `browser-use-cli-2.md`를 만들지 말고 기존 파일 업데이트
+4. 예: `claude-code.md`가 있으면 `claude-code-2026.md`를 만들지 말고 기존 파일 업데이트
+
+**번호 붙여서 새 파일 만드는 것은 절대 금지.** 같은 주제는 하나의 파일에 타임라인으로 누적.
+
+## 프론트매터 자동 보정
+
+기존 토픽/엔티티 파일을 업데이트할 때 프론트매터가 불완전하면 자동 보정한다.
+
+**토픽 필수 필드**: `type`, `topic_type`, `created`, `updated`, `tags`, `related_entities`
+**엔티티 필수 필드**: `type`, `entity_type`, `created`, `updated`, `tags`, `x_handle`, `url`
+
+예: 초기 버전에서 `type`이나 `topic_type` 없이 생성된 파일 → 업데이트 시 추가
 
 ## 수집 로그 작성 (유실 방지)
 
@@ -109,27 +134,6 @@
 - 링크가 없으면 Phase 3-4에서 WebFetch로 탐색
 - **추측으로 링크를 만들지 않는다** — 없으면 "링크 미발견"으로 기록
 
-**나쁜 예 (현재):**
-```markdown
-**Context Hub 발표** ❤️4.9K
-Andrew Ng가 Context Hub(chub) 공개. 코딩 에이전트에 최신 API 문서를 제공하는 오픈 CLI 도구.
-```
-
-**좋은 예 (목표):**
-```markdown
-**Context Hub 발표 — AI agent 간 지식 공유 인프라** ❤️4.9K
-Andrew Ng가 Context Hub(chub) 공개. AI 코딩 에이전트가 outdated 문서로 코드를 생성하는 문제를 해결.
-
-핵심 구조:
-- 오픈 CLI 도구 — `npm install -g chub`로 설치
-- 라이브러리 관리자가 `chub add`로 최신 API 문서를 등록
-- 에이전트가 `chub query <library>`로 실시간 문서 검색
-- agent-to-agent 지식 공유: 한 에이전트가 발견한 패턴을 다른 에이전트가 활용
-
-> "Should there be a Stack Overflow for AI coding agents to share learnings with each other?" — @AndrewYNg
-([원문](https://x.com/AndrewYNg/status/...))
-```
-
 ## 원문 인용구 포함 (RAG 적중률)
 
 토픽 노트의 타임라인 항목에 **핵심 문장 1-2개를 `> ` 인용 블록으로 포함**한다.
@@ -148,15 +152,30 @@ Andrew Ng가 Context Hub(chub) 공개. AI 코딩 에이전트가 outdated 문서
 - 이미지 포스트에서 추출한 텍스트도 인용구로 포함 가능
 - 작성자 attribution 필수: `— @handle` 또는 `— 이름`
 
-## 키워드 자동 발견
+## 키워드 관리 (lifecycle)
 
+키워드는 설정(config.json)과 상태(_state/keywords.md)로 분리하여 관리한다.
+
+### 키워드 계층
+1. **core** (config.json) — 항상 검색. 사용자가 직접 관리. 삭제/변경 안 함
+2. **active** (_state/keywords.md) — 최근 5일 내 출현한 discovered 키워드. Phase 1에서 검색
+3. **archived** (_state/keywords.md) — 5일 미출현으로 비활성화됨. Phase 1 검색 안 함
+
+### 키워드 lifecycle 규칙
+- **발견**: 2개 이상 포스트에서 반복 등장하는 새 용어 → active에 추가
+- **유지**: 매 실행 시 검색 결과에 출현하면 `last_seen` 갱신, `hits` 증가
+- **아카이브**: `last_seen`이 5일 이상 경과 → archived로 이동
+- **상한**: active 최대 30개. 초과 시 hits 낮은 것부터 archived로 이동
+- **복원**: archived 키워드가 다시 포스트에서 발견되면 active로 복원
+
+### 검색 순서
+Phase 1에서 키워드 검색 시: **core 먼저 → active 순서로.** archived는 검색하지 않는다.
+
+### 키워드 발견 기준
 수집된 포스트 전체에서 자주 등장하지만 현재 키워드 목록에 없는 용어를 찾는다:
-
 - 2개 이상 포스트에서 반복 등장하는 새 용어
-- 예: "Cowork" 반복 → `discovered`에 추가
-- 예: "AgentPay" 새 트렌드 → `discovered`에 추가
-- 설정 파일의 `keywords.discovered` 배열에 자동 추가
-- 다음 실행 시 Phase 1에서 이 키워드로도 검색
+- 명확한 기술명/제품명/프레임워크명
+- `_state/keywords.md`의 active 테이블에 추가
 
 ## 중복 제거
 
